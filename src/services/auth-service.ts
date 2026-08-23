@@ -1,4 +1,5 @@
 import { CitizenUser } from '@/types/citizen';
+import { LocalCitizenTable } from './local-citizen-table';
 
 export interface AuthApiResponse {
   status: 'success' | 'otp_required' | 'error';
@@ -59,17 +60,36 @@ export class AuthService {
       if (data.user.email) this.currentUserEmail = data.user.email;
       if (data.user.mobile_number || data.user.phone) this.currentUserPhone = data.user.mobile_number || data.user.phone;
       if (data.user.citizen_user_id) this.currentUserId = data.user.citizen_user_id;
+
+      // Sync into local mapping table
+      LocalCitizenTable.insert({
+        citizen_user_id: data.user.citizen_user_id || this.currentUserId || 1001,
+        first_name: data.user.first_name || '',
+        middle_name: data.user.middle_name || '',
+        has_no_middle_name: data.user.has_no_middle_name || 0,
+        last_name: data.user.last_name || '',
+        suffix: data.user.suffix || '',
+        email: data.user.email || this.currentUserEmail || '',
+        mobile_number: data.user.mobile_number || this.currentUserPhone || '',
+        status: data.user.status || 'Active',
+        registry_completed: data.user.registry_completed || 0,
+        biometric_enabled: data.user.biometric_enabled || 0,
+      });
     }
   }
 
   static getCurrentUser() {
     const isGuestSession = this.isGuest || (!this.currentUserEmail && !this.currentUserPhone && !this.currentUserId);
+    const localUser = this.currentUserEmail
+      ? LocalCitizenTable.findByEmail(this.currentUserEmail)
+      : (this.currentUserId ? LocalCitizenTable.findById(this.currentUserId) : LocalCitizenTable.getActiveSession());
+
     return {
       isGuest: isGuestSession,
-      email: isGuestSession ? null : this.currentUserEmail,
-      phone: isGuestSession ? null : this.currentUserPhone,
-      citizen_user_id: isGuestSession ? null : this.currentUserId,
-      user: isGuestSession ? null : this.currentUserData,
+      email: isGuestSession ? null : (this.currentUserEmail || localUser?.email || null),
+      phone: isGuestSession ? null : (this.currentUserPhone || localUser?.mobile_number || null),
+      citizen_user_id: isGuestSession ? null : (this.currentUserId || localUser?.citizen_user_id || null),
+      user: isGuestSession ? null : (this.currentUserData || localUser || null),
     };
   }
 
@@ -79,6 +99,7 @@ export class AuthService {
     this.currentUserPhone = null;
     this.currentUserId = null;
     this.currentUserData = null;
+    LocalCitizenTable.clearSession();
   }
 
   /**
@@ -256,7 +277,18 @@ export class AuthService {
 
         AuthService.setCurrentUser({
           email: userEmail,
+          phone: userData.mobileNumber,
           citizen_user_id: userId,
+          user: {
+            first_name: userData.firstName,
+            middle_name: userData.middleName || '',
+            has_no_middle_name: userData.hasNoMiddleName ? 1 : 0,
+            last_name: userData.lastName,
+            suffix: userData.suffix || '',
+            email: userEmail,
+            mobile_number: userData.mobileNumber || '',
+            citizen_user_id: userId,
+          },
         });
 
         return {

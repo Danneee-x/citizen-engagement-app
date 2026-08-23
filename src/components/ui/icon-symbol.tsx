@@ -16,6 +16,8 @@ const MAPPING: IconMapping = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'chevron.left': 'chevron-left',
+  'chevron.down': 'expand-more',
+  'chevron.up': 'expand-less',
   'shield.fill': 'shield',
   'person.text.rectangle.fill': 'badge',
   'heart.text.square.fill': 'volunteer-activism',
@@ -68,6 +70,19 @@ const MAPPING: IconMapping = {
   'target': 'track-changes',
   'funnel.fill': 'filter-list',
   'sparkles': 'auto-awesome',
+  'person.badge.plus': 'person-add',
+  'xmark': 'close',
+  'trash.fill': 'delete',
+  'plus': 'add',
+  'arrow.clockwise': 'refresh',
+  'arrow.up.doc.fill': 'upload-file',
+  'bubble.left.and.bubble.right.fill': 'chat',
+  'chart.bar.fill': 'bar-chart',
+  'questionmark.circle.fill': 'help-outline',
+  'exclamationmark.circle.fill': 'error-outline',
+  'checkmark': 'check',
+  'camera.fill': 'photo-camera',
+  'photo.fill': 'photo',
 };
 
 export type IconSymbolName = keyof typeof MAPPING;

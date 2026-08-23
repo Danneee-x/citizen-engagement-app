@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './auth-service';
+import { LocalCitizenTable } from './local-citizen-table';
 
 export interface CitizenProfileData {
   citizen_user_id?: number;
@@ -64,6 +65,40 @@ export class ProfileService {
       }
 
       if (!response) {
+        // Fallback to Local Mapping Table
+        const localUser = identifier
+          ? LocalCitizenTable.findByEmail(identifier)
+          : (phone ? LocalCitizenTable.findByPhone(phone) : (citizenUserId ? LocalCitizenTable.findById(citizenUserId) : LocalCitizenTable.getActiveSession()));
+
+        if (localUser) {
+          return {
+            status: 'success',
+            data: {
+              citizen_user_id: localUser.citizen_user_id,
+              first_name: localUser.first_name,
+              middle_name: localUser.middle_name,
+              last_name: localUser.last_name,
+              suffix: localUser.suffix,
+              fullName: `${localUser.first_name} ${localUser.last_name}`.trim(),
+              initials: localUser.first_name ? localUser.first_name.charAt(0).toUpperCase() : '',
+              email: localUser.email,
+              phone: localUser.mobile_number || '',
+              address: localUser.street_address || '',
+              city: 'Caloocan City',
+              barangay: localUser.barangay || '',
+              birthDate: localUser.birth_date || '',
+              civilStatus: localUser.civil_status || '',
+              citizenId: `CIV-2026-${String(localUser.citizen_user_id).padStart(5, '0')}`,
+              status: localUser.status || 'Active',
+              isVerified: true,
+              registryCompleted: Boolean(localUser.registry_completed),
+              biometricEnabled: Boolean(localUser.biometric_enabled),
+              memberSince: localUser.created_at || '2026-01-01',
+              lastLogin: localUser.last_login || new Date().toISOString(),
+            },
+          };
+        }
+
         return { status: 'error', message: 'Unable to reach profile API endpoint' };
       }
 

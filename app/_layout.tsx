@@ -27,6 +27,12 @@ export default function RootLayout() {
             <Stack.Screen name="business" />
             <Stack.Screen name="housing" />
             <Stack.Screen name="emergency" />
+            <Stack.Screen name="report-a-concern" />
+            <Stack.Screen name="citizen-id-application" />
+            <Stack.Screen name="certificate-requests" />
+            <Stack.Screen name="public-surveys" />
+            <Stack.Screen name="community-feedback" />
+            <Stack.Screen name="my-reports" />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
           <StatusBar style="auto" />

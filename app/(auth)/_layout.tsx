@@ -9,6 +9,7 @@ export default function AuthLayout() {
       <Stack.Screen name="verify" />
       <Stack.Screen name="verify-phone" />
       <Stack.Screen name="forgot-password" />
+      <Stack.Screen name="verify-citizen" />
     </Stack>
   );
 }

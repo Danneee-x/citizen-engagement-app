@@ -57,6 +57,85 @@ const CATEGORIES = [
 ] as const;
 
 const SERVICES_CATALOG: ServiceCatalogItem[] = [
+  // CITIZEN REPORT & GRIEVANCE
+  {
+    id: 'SVC-CONCERN',
+    title: 'Report a Concern',
+    category: 'DISASTER',
+    description: 'Submit complaints, community issues, service concerns, and public safety reports directly to Caloocan City.',
+    iconName: 'megaphone.fill',
+    iconBg: '#FEE2E2',
+    iconColor: '#DC2626',
+    badgeLabel: 'REPORT & GRIEVANCE',
+    badgeVariant: 'danger',
+    route: '/report-a-concern',
+  },
+  // CITIZEN ID & REGISTRY SERVICES
+  {
+    id: 'SVC-CITIZEN-ID',
+    title: 'Citizen ID Application',
+    category: 'BARANGAY',
+    description: 'Apply for official Caloocan Digital & Physical Citizen ID, renewal, or replacement with claim voucher.',
+    iconName: 'creditcard.fill',
+    iconBg: '#E0E7FF',
+    iconColor: '#4338CA',
+    badgeLabel: 'CITIZEN ID',
+    badgeVariant: 'info',
+    route: '/citizen-id-application',
+  },
+  // CERTIFICATE & DOCUMENT REQUESTS
+  {
+    id: 'SVC-CERTIFICATES',
+    title: 'Certificate & Document Requests',
+    category: 'BARANGAY',
+    description: 'Request Barangay Certificate, Certificate of Residency, Indigency & official municipal clearances online.',
+    iconName: 'doc.text.fill',
+    iconBg: '#E0F2FE',
+    iconColor: '#0284C7',
+    badgeLabel: 'ONLINE REQUEST',
+    badgeVariant: 'info',
+    route: '/certificate-requests',
+  },
+  // PUBLIC SURVEYS & CONSULTATIONS
+  {
+    id: 'SVC-SURVEYS',
+    title: 'Public Surveys & Consultations',
+    category: 'SOCIAL',
+    description: 'Participate in active municipal surveys, civic policy consultations, and public opinion polls.',
+    iconName: 'bubble.left.and.bubble.right.fill',
+    iconBg: '#EDE9FE',
+    iconColor: '#7C3AED',
+    badgeLabel: 'VOICE & POLLS',
+    badgeVariant: 'info',
+    route: '/public-surveys',
+  },
+  // COMMUNITY FEEDBACK
+  {
+    id: 'SVC-FEEDBACK',
+    title: 'Community Feedback & Rating',
+    category: 'SOCIAL',
+    description: 'Rate recent municipal service transactions, staff experience & share suggestions for Caloocan City offices.',
+    iconName: 'star.bubble.fill',
+    iconBg: '#FEF3C7',
+    iconColor: '#D97706',
+    badgeLabel: 'RATE SERVICE',
+    badgeVariant: 'warning',
+    route: '/community-feedback',
+  },
+  // MY REPORTS
+  {
+    id: 'SVC-MY-REPORTS',
+    title: 'My Reports & Grievances',
+    category: 'BARANGAY',
+    description: 'Track real-time progress, dispatch updates & provide resolution feedback on your submitted concerns.',
+    iconName: 'list.bullet.rectangle.fill',
+    iconBg: '#E0F2FE',
+    iconColor: '#0284C7',
+    badgeLabel: 'LIVE TRACKER',
+    badgeVariant: 'info',
+    route: '/my-reports',
+  },
+
   // 1. DISASTER & EMERGENCY SERVICES
   {
     id: 'SVC-DRR',
@@ -79,30 +158,6 @@ const SERVICES_CATALOG: ServiceCatalogItem[] = [
     iconBg: '#FEF3C7',
     iconColor: '#D97706',
     badgeLabel: 'EVACUATION',
-    badgeVariant: 'warning',
-    route: '/emergency',
-  },
-  {
-    id: 'SVC-DRR-INC',
-    title: 'Report an Incident',
-    category: 'DISASTER',
-    description: 'Submit urgent reports for fires, vehicular collisions, fallen trees, flooding & public safety hazards.',
-    iconName: 'flame.fill',
-    iconBg: '#FEE2E2',
-    iconColor: '#DC2626',
-    badgeLabel: 'INCIDENT REPORT',
-    badgeVariant: 'danger',
-    route: '/emergency',
-  },
-  {
-    id: 'SVC-DRR-ALT',
-    title: 'Emergency Alerts & Advisories',
-    category: 'DISASTER',
-    description: 'Real-time city alerts for typhoon warnings, class suspensions, power interruptions & road closures.',
-    iconName: 'bell.fill',
-    iconBg: '#FFEDD5',
-    iconColor: '#EA580C',
-    badgeLabel: 'ALERTS',
     badgeVariant: 'warning',
     route: '/emergency',
   },
@@ -319,18 +374,6 @@ const SERVICES_CATALOG: ServiceCatalogItem[] = [
     route: '/education',
   },
   {
-    id: 'SVC-BRG',
-    title: 'Barangay Clearance & Citizen ID',
-    category: 'BARANGAY',
-    description: 'Apply for Barangay Clearance, Residency Certification & Official Caloocan Digital Citizen Pass.',
-    iconName: 'person.text.rectangle.fill',
-    iconBg: '#E0F2FE',
-    iconColor: '#0284C7',
-    badgeLabel: 'POPULAR',
-    badgeVariant: 'info',
-    route: '/(tabs)/tracker',
-  },
-  {
     id: 'SVC-BPLO',
     title: 'Business Permit & E-Clearance',
     category: 'BUSINESS',
@@ -399,7 +442,31 @@ export function ServicesCatalogScreen() {
     const matchesQuery =
       query === '' ||
       item.title.toLowerCase().includes(query) ||
-      item.description.toLowerCase().includes(query);
+      item.description.toLowerCase().includes(query) ||
+      (item.id === 'SVC-CONCERN' &&
+        ['concern', 'complaint', 'grievance', 'report', 'issue', 'hazard', 'garbage', 'pothole', 'streetlights'].some((k) =>
+          k.includes(query) || query.includes(k)
+        )) ||
+      (item.id === 'SVC-CITIZEN-ID' &&
+        ['id', 'citizen id', 'card', 'valid id', 'identification', 'replacement', 'renewal', 'barangay id'].some((k) =>
+          k.includes(query) || query.includes(k)
+        )) ||
+      (item.id === 'SVC-CERTIFICATES' &&
+        ['certificate', 'clearance', 'residency', 'indigency', 'barangay certificate', 'document', 'cedula'].some((k) =>
+          k.includes(query) || query.includes(k)
+        )) ||
+      (item.id === 'SVC-SURVEYS' &&
+        ['survey', 'consultation', 'poll', 'feedback', 'voice', 'opinion', 'ordinance', 'vote'].some((k) =>
+          k.includes(query) || query.includes(k)
+        )) ||
+      (item.id === 'SVC-FEEDBACK' &&
+        ['feedback', 'rating', 'rate', 'review', 'satisfaction', 'stars', 'evaluation', 'comment'].some((k) =>
+          k.includes(query) || query.includes(k)
+        )) ||
+      (item.id === 'SVC-MY-REPORTS' &&
+        ['my reports', 'reports', 'tracked concerns', 'grievance', 'ticket', 'status', 'resolution'].some((k) =>
+          k.includes(query) || query.includes(k)
+        ));
 
     return matchesCat && matchesQuery;
   });

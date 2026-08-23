@@ -159,13 +159,13 @@ export function HomeScreen() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(!isGuestMode);
   const [userProfile, setUserProfile] = useState<CitizenProfileData>({
     citizen_user_id: activeUserId || 0,
-    first_name: isGuestMode ? "Guest" : "",
+    first_name: isGuestMode ? "Guest" : "Danny",
     middle_name: "",
-    last_name: isGuestMode ? "Resident" : "",
+    last_name: isGuestMode ? "Resident" : "Resident",
     suffix: "",
-    fullName: isGuestMode ? "Guest Resident" : "Active Citizen",
-    initials: isGuestMode ? "GR" : "AC",
-    email: activeEmail || (isGuestMode ? "guest@caloocan.gov.ph" : ""),
+    fullName: isGuestMode ? "Guest Resident" : "Danny Resident",
+    initials: isGuestMode ? "GR" : "DR",
+    email: activeEmail || (isGuestMode ? "guest@caloocan.gov.ph" : "danny.resident@caloocan.gov.ph"),
     phone: "",
     address: "",
     city: "Caloocan City",
@@ -228,7 +228,7 @@ export function HomeScreen() {
 
   const firstName =
     userProfile.first_name ||
-    (userProfile.fullName ? userProfile.fullName.split(" ")[0] : "Citizen");
+    (userProfile.fullName ? userProfile.fullName.split(" ")[0] : "Danny");
 
   const locationLabel = userProfile.barangay
     ? `${userProfile.barangay}, Caloocan City`
@@ -277,10 +277,20 @@ export function HomeScreen() {
             resizeMode="cover"
           >
             <View style={styles.heroOverlay}>
-              <Text style={[styles.heroGreetingText, { color: dm ? "#F8FAFC" : "#1E293B" }]}>
+              <Text
+                style={[
+                  styles.heroGreetingText,
+                  { color: dm ? "#F8FAFC" : "#1E293B" },
+                ]}
+              >
                 {getGreeting()}, {firstName} 👋
               </Text>
-              <Text style={[styles.heroSubText, { color: dm ? "#CBD5E1" : "#64748B" }]}>
+              <Text
+                style={[
+                  styles.heroSubText,
+                  { color: dm ? "#CBD5E1" : "#64748B" },
+                ]}
+              >
                 {locationLabel}
               </Text>
             </View>
@@ -449,6 +459,36 @@ export function HomeScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* VERIFY CITIZENSHIP BANNER (NAVIGATES TO NEW VERIFY CITIZEN SCREEN) */}
+          <TouchableOpacity
+            style={[
+              styles.registerNowBanner,
+              {
+                backgroundColor: dm ? "#0284C7" : "#176B87",
+              },
+            ]}
+            onPress={() => router.push("/(auth)/verify-citizen" as any)}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Verify Citizenship"
+          >
+            <View style={styles.registerNowBannerLeft}>
+              <View style={styles.registerNowIconBox}>
+                <IconSymbol name="checkmark.seal.fill" size={20} color="#FFFFFF" />
+              </View>
+              <View style={styles.registerNowTextBlock}>
+                <Text style={styles.registerNowBannerText}>
+                  Verify Citizenship
+                </Text>
+                <Text style={styles.registerNowBannerSub} numberOfLines={1}>
+                  Get your citizen account verified
+                </Text>
+              </View>
+            </View>
+            <IconSymbol name="chevron.right" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+
           <View style={styles.serviceGrid}>
             <TouchableOpacity
               style={[
