@@ -18,7 +18,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/src/components/ui/icon-symbol';
 import { useTheme } from '@/src/context/ThemeContext';
-import { AuthService } from '@/src/services/auth-service';
+import { API_BASE_URL, AuthService } from '@/src/services/auth-service';
 import { ProfileService } from '@/src/services/profile-service';
 import { LocalCitizenTable } from '@/src/services/local-citizen-table';
 import { styles } from '../styles/VerifyCitizenScreen.styles';
@@ -454,7 +454,7 @@ export function VerifyCitizenScreen() {
       const currentUser = AuthService.getCurrentUser();
       const userId = currentUser.citizen_user_id || 1001;
 
-      // Update citizen verification details in local store & active session
+      // 1. Update citizen verification details in local store & active session
       LocalCitizenTable.update(userId, {
         first_name: firstName.trim(),
         middle_name: middleName.trim() || null,
@@ -474,6 +474,68 @@ export function VerifyCitizenScreen() {
         valid_id_type: selectedIdType,
         valid_id_number: idNumber.trim(),
       });
+
+      // 2. Transmit to MySQL citizen_verification database via API
+      const payload = {
+        citizen_user_id: currentUser.citizen_user_id || userId,
+        email: currentUser.email || undefined,
+        phone: currentUser.phone || undefined,
+        first_name: firstName.trim(),
+        middle_name: middleName.trim() || null,
+        last_name: lastName.trim(),
+        suffix: suffix.trim() || null,
+        sex,
+        place_of_birth: placeOfBirth.trim(),
+        birth_date: birthDate,
+        civil_status: civilStatus,
+        employment_status: employmentStatus,
+        occupation,
+        educational_attainment: educationalAttainment,
+        district: activeDistrict.shortName,
+        barangay,
+        street_address: streetAddress.trim(),
+        years_resident: parseInt(yearsResident.trim(), 10) || 1,
+        valid_id_type: selectedIdType,
+        valid_id_number: idNumber.trim(),
+        id_front_photo_url: idImageUri || null,
+        selfie_photo_url: selfieImageUri || null,
+      };
+
+      const candidateEndpoints = [
+        `${API_BASE_URL}/verify-citizen.php`,
+        `${API_BASE_URL}/verify.php`,
+        'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
+        'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
+        'http://192.168.100.15/citizen-backend/api/citizen/verify-citizen.php',
+        'http://localhost/citizen-backend/api/citizen/verify-citizen.php',
+      ];
+
+      for (const endpoint of candidateEndpoints) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 5000);
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.status === 'success') {
+              console.log('Successfully saved to citizen_verification database:', data);
+              break;
+            }
+          }
+        } catch (fetchErr) {
+          // Attempt next candidate endpoint
+        }
+      }
     } catch (err) {
       console.warn('Citizen Registry verification error:', err);
     } finally {
