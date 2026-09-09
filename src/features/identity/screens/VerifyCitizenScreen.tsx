@@ -262,6 +262,27 @@ export function VerifyCitizenScreen() {
     setIsPhotoPickerVisible(true);
   };
 
+  const convertToDataUri = async (asset: ImagePicker.ImagePickerAsset): Promise<string> => {
+    if (asset.base64) {
+      const mime = asset.mimeType || 'image/jpeg';
+      return `data:${mime};base64,${asset.base64}`;
+    }
+    if (asset.uri && (asset.uri.startsWith('blob:') || asset.uri.startsWith('http'))) {
+      try {
+        const response = await fetch(asset.uri);
+        const blob = await response.blob();
+        return await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn('Blob to data uri conversion error:', e);
+      }
+    }
+    return asset.uri;
+  };
+
   const handleTakePhoto = async () => {
     setIsPhotoPickerVisible(false);
     try {
@@ -274,11 +295,12 @@ export function VerifyCitizenScreen() {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.7,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const uri = result.assets[0].uri;
+        const uri = await convertToDataUri(result.assets[0]);
         if (photoPickerTarget === 'id') {
           setIdImageUri(uri);
           setHasUploadedId(true);
@@ -306,11 +328,12 @@ export function VerifyCitizenScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        quality: 0.8,
+        quality: 0.7,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const uri = result.assets[0].uri;
+        const uri = await convertToDataUri(result.assets[0]);
         if (photoPickerTarget === 'id') {
           setIdImageUri(uri);
           setHasUploadedId(true);
@@ -475,6 +498,37 @@ export function VerifyCitizenScreen() {
         valid_id_number: idNumber.trim(),
       });
 
+      // Ensure photo URIs are full base64 Data URIs rather than local browser memory blobs
+      let finalIdPhoto = idImageUri;
+      if (finalIdPhoto && finalIdPhoto.startsWith('blob:')) {
+        try {
+          const r = await fetch(finalIdPhoto);
+          const b = await r.blob();
+          finalIdPhoto = await new Promise<string>((res) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res(reader.result as string);
+            reader.readAsDataURL(b);
+          });
+        } catch (e) {
+          console.warn('Could not convert blob ID photo to base64:', e);
+        }
+      }
+
+      let finalSelfiePhoto = selfieImageUri;
+      if (finalSelfiePhoto && finalSelfiePhoto.startsWith('blob:')) {
+        try {
+          const r = await fetch(finalSelfiePhoto);
+          const b = await r.blob();
+          finalSelfiePhoto = await new Promise<string>((res) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res(reader.result as string);
+            reader.readAsDataURL(b);
+          });
+        } catch (e) {
+          console.warn('Could not convert blob selfie photo to base64:', e);
+        }
+      }
+
       // 2. Transmit to MySQL citizen_verification database via API
       const payload = {
         citizen_user_id: currentUser.citizen_user_id || userId,
@@ -497,8 +551,8 @@ export function VerifyCitizenScreen() {
         years_resident: parseInt(yearsResident.trim(), 10) || 1,
         valid_id_type: selectedIdType,
         valid_id_number: idNumber.trim(),
-        id_front_photo_url: idImageUri || null,
-        selfie_photo_url: selfieImageUri || null,
+        id_front_photo_url: finalIdPhoto || null,
+        selfie_photo_url: finalSelfiePhoto || null,
       };
 
       const candidateEndpoints = [
