@@ -18,6 +18,7 @@ import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
 import { AuthService } from '@/src/services/auth-service';
 import { ProfileService } from '@/src/services/profile-service';
+import { CertificateService } from '@/src/services/certificate-service';
 
 export interface CertificateType {
   id: string;
@@ -140,7 +141,7 @@ export default function CertificateRequestsScreen() {
   const [selectedPurpose, setSelectedPurpose] = useState(PURPOSE_OPTIONS[0]);
   const [purposeDetails, setPurposeDetails] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
-  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string }[]>([
+  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string; uri?: string }[]>([
     { id: 'f-1', name: 'philsys_valid_id.pdf', size: '1.1 MB' },
   ]);
 
@@ -222,6 +223,7 @@ export default function CertificateRequestsScreen() {
             id: `doc-${Date.now()}`,
             name: asset.fileName || `supporting_doc_${prev.length + 1}.jpg`,
             size: `${Math.round((asset.fileSize || 1024 * 600) / 1024)} KB`,
+            uri: asset.uri,
           },
         ]);
       }
@@ -250,39 +252,55 @@ export default function CertificateRequestsScreen() {
     setCurrentStep(3);
   };
 
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
     if (!selectedCert) return;
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-
-      const ref = `CAL-DOC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      const now = new Date();
-      const dateStr =
-        now.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }) + ` • ` + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-      setSubmittedData({
-        referenceNumber: ref,
-        certificateName: selectedCert.name,
-        requestStatus: 'Submitted (Awaiting Clerk Validation)',
-        submissionDate: dateStr,
-        processingUpdates:
-          'Your certificate request has been transmitted directly to your Barangay Records & Civil Registry desk. Automated record clearance has commenced.',
-        releaseDownloadInfo: {
-          digitalDownload: 'Digital e-Certificate with official cryptographic QR seal will be downloadable in the app once approved.',
-          pickupLocation: `${barangay} Barangay Hall - Document & Clearance Release Counter`,
-          validity: 'Valid for 6 Months from date of issuance',
-        },
+    try {
+      const session = AuthService.getCurrentUser();
+      const res = await CertificateService.submitCertificateRequest({
+        applicant_name: applicantName.trim(),
+        street_address: streetAddress.trim(),
+        barangay: barangay.trim(),
+        contact_number: phone.trim(),
+        email: email.trim(),
+        certificate_type: selectedCert.name,
+        purpose: selectedPurpose,
+        purpose_details: purposeDetails.trim(),
+        additional_notes: additionalNotes.trim(),
+        citizen_user_id: session.citizen_user_id || undefined,
+        uploaded_documents: uploadedFiles.map((f) => ({
+          name: f.name,
+          size: f.size,
+          uri: f.uri,
+        })),
+        encoded_by: 'Citizen Mobile App',
       });
 
-      setCurrentStep(4);
-    }, 900);
+      if (res && res.data) {
+        setSubmittedData({
+          referenceNumber: res.data.reference_no,
+          certificateName: res.data.certificate_type,
+          requestStatus: `Submitted (${res.data.status})`,
+          submissionDate: res.data.submission_date,
+          processingUpdates:
+            'Your certificate request has been transmitted directly to your Barangay Records & Civil Registry desk in CIVentral. Record validation has commenced.',
+          releaseDownloadInfo: {
+            digitalDownload: 'Digital e-Certificate with official cryptographic QR seal will be downloadable in the app once approved.',
+            pickupLocation: res.data.pickup_location,
+            validity: 'Valid for 6 Months from date of issuance',
+          },
+        });
+
+        setCurrentStep(4);
+      }
+    } catch (err) {
+      console.warn('Certificate submit error:', err);
+      Alert.alert('Submission Error', 'Could not submit certificate request. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
