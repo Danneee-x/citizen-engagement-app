@@ -19,6 +19,7 @@ import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
 import { AuthService } from '@/src/services/auth-service';
 import { ProfileService } from '@/src/services/profile-service';
+import { ConcernService } from '@/src/services/concern-service';
 
 export const CONCERN_CATEGORIES = [
   'Road & Infrastructure',
@@ -59,9 +60,10 @@ export default function ReportConcernScreen() {
   const [contactName, setContactName] = useState('Danny Espelita Jr');
   const [contactPhone, setContactPhone] = useState('09171234567');
   const [contactEmail, setContactEmail] = useState('danny.resident@caloocan.ph');
+  const [isAnonymous, setIsAnonymous] = useState(false);
 
   // File / Photo Uploads
-  const [photos, setPhotos] = useState<{ id: string; name: string; size: string }[]>([]);
+  const [photos, setPhotos] = useState<{ id: string; name: string; size: string; uri?: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -145,6 +147,7 @@ export default function ReportConcernScreen() {
             id: `p-${Date.now()}`,
             name: asset.fileName || `evidence_photo_${prev.length + 1}.jpg`,
             size: `${Math.round((asset.fileSize || 1024 * 650) / 1024)} KB`,
+            uri: asset.uri,
           },
         ]);
       }
@@ -159,7 +162,7 @@ export default function ReportConcernScreen() {
     setPhotos((prev) => prev.filter((p) => p.id !== id));
   };
 
-  const handleSubmitConcern = () => {
+  const handleSubmitConcern = async () => {
     if (!title.trim()) {
       Alert.alert('Required Field', 'Please enter a title for your concern.');
       return;
@@ -175,110 +178,45 @@ export default function ReportConcernScreen() {
 
     setIsSubmitting(true);
 
-    // AI routing & analysis simulation
-    setTimeout(() => {
-      setIsSubmitting(false);
-
-      const ref = `CAL-REP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-      const now = new Date();
-      const dateStr =
-        now.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }) + ` • ` + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-      const textCombo = (title + ' ' + description + ' ' + selectedCategory).toLowerCase();
-      let detectedCategory = selectedCategory;
-      let priority = 'Medium';
-      let recommendedDepartment = 'Caloocan Public Assistance Bureau';
-      let confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-      let similarConcerns = '2 similar concerns detected nearby';
-
-      if (
-        textCombo.includes('garbage') ||
-        textCombo.includes('waste') ||
-        textCombo.includes('trash') ||
-        textCombo.includes('dump') ||
-        selectedCategory === 'Garbage & Waste'
-      ) {
-        detectedCategory = 'Garbage & Waste Management';
-        priority = 'Medium';
-        recommendedDepartment = 'Environmental / Waste Management Department';
-        confidenceScore = '97% - Gemini AI Multi-Modal Engine';
-        similarConcerns = '2 similar concerns found within 250m';
-      } else if (
-        textCombo.includes('road') ||
-        textCombo.includes('pothole') ||
-        textCombo.includes('bridge') ||
-        textCombo.includes('crack') ||
-        selectedCategory === 'Road & Infrastructure'
-      ) {
-        detectedCategory = 'Road & Infrastructure Repairs';
-        priority = 'High';
-        recommendedDepartment = 'City Engineering & Public Works Office';
-        confidenceScore = '98% - Gemini AI Multi-Modal Engine';
-        similarConcerns = '1 duplicate report merged';
-      } else if (
-        textCombo.includes('flood') ||
-        textCombo.includes('drain') ||
-        textCombo.includes('canal') ||
-        textCombo.includes('waterlog') ||
-        selectedCategory === 'Flooding & Drainage'
-      ) {
-        detectedCategory = 'Flooding & Drainage Maintenance';
-        priority = 'High';
-        recommendedDepartment = 'Caloocan Flood Control & Drainage Bureau';
-        confidenceScore = '96% - Gemini AI Multi-Modal Engine';
-        similarConcerns = '3 related flood tickets detected';
-      } else if (
-        textCombo.includes('light') ||
-        textCombo.includes('dark') ||
-        textCombo.includes('lamp') ||
-        textCombo.includes('post') ||
-        selectedCategory === 'Streetlights'
-      ) {
-        detectedCategory = 'Streetlighting & Public Electrical';
-        priority = 'Medium';
-        recommendedDepartment = 'Public Safety Electrical Division';
-        confidenceScore = '94% - Gemini AI Multi-Modal Engine';
-        similarConcerns = 'No duplicate reports found';
-      } else if (
-        textCombo.includes('safety') ||
-        textCombo.includes('police') ||
-        textCombo.includes('hazard') ||
-        textCombo.includes('theft') ||
-        selectedCategory === 'Public Safety'
-      ) {
-        detectedCategory = 'Public Safety & Peace Order';
-        priority = 'Urgent';
-        recommendedDepartment = 'Caloocan Public Safety & Police Bureau (CPTMD)';
-        confidenceScore = '99% - Gemini AI Multi-Modal Engine';
-        similarConcerns = 'Immediate dispatch alert generated';
-      } else if (
-        textCombo.includes('tree') ||
-        textCombo.includes('smoke') ||
-        textCombo.includes('pollution') ||
-        selectedCategory === 'Environment'
-      ) {
-        detectedCategory = 'Environmental Protection & Natural Resources';
-        priority = 'Medium';
-        recommendedDepartment = 'City Environment & Natural Resources Office';
-        confidenceScore = '93% - Gemini AI Multi-Modal Engine';
-        similarConcerns = '1 related environmental ticket';
-      }
-
-      setSubmittedData({
-        referenceNumber: ref,
-        submissionDate: dateStr,
-        currentStatus: 'AI Analyzed & Automatically Routed',
-        detectedCategory,
-        priority,
-        similarConcerns,
-        recommendedDepartment,
-        confidenceScore,
+    try {
+      const session = AuthService.getCurrentUser();
+      const res = await ConcernService.submitConcern({
+        title: title.trim(),
+        description: description.trim(),
+        category: selectedCategory,
+        location: location.trim(),
+        barangay,
+        gps_coordinates: gpsCoords,
+        citizen_user_id: session?.citizen_user_id || undefined,
+        citizen_name: isAnonymous ? 'Anonymous Resident' : contactName.trim(),
+        citizen_phone: isAnonymous ? undefined : contactPhone.trim(),
+        citizen_email: isAnonymous ? undefined : contactEmail.trim(),
+        is_anonymous: isAnonymous,
+        photos: photos.map((p) => ({
+          name: p.name,
+          size: p.size,
+          uri: p.uri,
+        })),
       });
-    }, 850);
+
+      if (res && res.data) {
+        setSubmittedData({
+          referenceNumber: res.data.ticket_number,
+          submissionDate: res.data.submission_date,
+          currentStatus: res.data.status,
+          detectedCategory: res.data.detected_category,
+          priority: res.data.priority,
+          similarConcerns: res.data.similar_concerns,
+          recommendedDepartment: res.data.recommended_department,
+          confidenceScore: res.data.confidence_score,
+        });
+      }
+    } catch (err) {
+      console.warn('Concern submission error:', err);
+      Alert.alert('Submission Error', 'Failed to submit concern. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleResetForm = () => {
@@ -584,10 +522,67 @@ export default function ReportConcernScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Anonymous Submission Toggle Card */}
+              <View style={styles.divider} />
+              <TouchableOpacity
+                style={[
+                  styles.anonymousCard,
+                  isAnonymous && styles.anonymousCardActive,
+                  isDarkMode && {
+                    backgroundColor: isAnonymous ? '#2E1065' : '#152238',
+                    borderColor: isAnonymous ? '#9333EA' : '#3A506B',
+                  },
+                ]}
+                onPress={() => setIsAnonymous(!isAnonymous)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.anonymousTopRow}>
+                  <View style={styles.anonymousTitleRow}>
+                    <IconSymbol
+                      name="shield.fill"
+                      size={18}
+                      color={isAnonymous ? '#A855F7' : '#94A3B8'}
+                    />
+                    <Text
+                      style={[
+                        styles.anonymousTitle,
+                        isAnonymous && { color: '#C084FC' },
+                        isDarkMode && !isAnonymous && { color: '#F8FAFC' },
+                      ]}
+                    >
+                      Submit Anonymously
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.toggleCircle,
+                      isAnonymous && styles.toggleCircleActive,
+                    ]}
+                  >
+                    <IconSymbol
+                      name={isAnonymous ? "checkmark" : "circle"}
+                      size={12}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    styles.anonymousSubtext,
+                    isAnonymous && { color: '#E9D5FF' },
+                    isDarkMode && !isAnonymous && { color: '#94A3B8' },
+                  ]}
+                >
+                  {isAnonymous
+                    ? 'Protected citizen identity enabled. Your name and contact details are concealed on staff review queues.'
+                    : 'Enable to file this report without disclosing your name or contact details to public review staff.'}
+                </Text>
+              </TouchableOpacity>
+
               {/* Contact Information */}
               <View style={styles.divider} />
               <Text style={[styles.sectionHeading, isDarkMode && { color: '#F8FAFC' }]}>
-                Contact Information
+                {isAnonymous ? 'Contact Information (Hidden from Staff)' : 'Contact Information'}
               </Text>
 
               <View style={styles.inputGroup}>
@@ -1338,5 +1333,50 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  anonymousCard: {
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1.5,
+    borderColor: '#E9D5FF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 4,
+  },
+  anonymousCardActive: {
+    backgroundColor: '#F3E8FF',
+    borderColor: '#A855F7',
+  },
+  anonymousTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  anonymousTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  anonymousTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#7E22CE',
+  },
+  toggleCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toggleCircleActive: {
+    backgroundColor: '#9333EA',
+  },
+  anonymousSubtext: {
+    fontSize: 12,
+    color: '#6B21A8',
+    lineHeight: 16,
+    fontWeight: '500',
   },
 });
