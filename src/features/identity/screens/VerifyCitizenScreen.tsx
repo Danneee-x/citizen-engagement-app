@@ -263,6 +263,47 @@ export function VerifyCitizenScreen() {
   };
 
   const convertToDataUri = async (asset: ImagePicker.ImagePickerAsset): Promise<string> => {
+    // If running on web, downscale using canvas to prevent sending massive 10MB camera blobs
+    if (Platform.OS === 'web' && typeof document !== 'undefined' && asset.uri) {
+      try {
+        const compressed = await new Promise<string>((resolve) => {
+          const img = new (window as any).Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            const maxDim = 1200;
+            let width = img.width;
+            let height = img.height;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(asset.uri);
+              return;
+            }
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
+          };
+          img.onerror = () => resolve(asset.uri);
+          img.src = asset.uri;
+        });
+        if (compressed && compressed.startsWith('data:')) {
+          return compressed;
+        }
+      } catch (err) {
+        console.warn('Canvas compression error, falling back:', err);
+      }
+    }
+
     if (asset.base64) {
       const mime = asset.mimeType || 'image/jpeg';
       return `data:${mime};base64,${asset.base64}`;
@@ -555,19 +596,29 @@ export function VerifyCitizenScreen() {
         selfie_photo_url: finalSelfiePhoto || null,
       };
 
-      const candidateEndpoints = [
-        `${API_BASE_URL}/verify-citizen.php`,
-        `${API_BASE_URL}/verify.php`,
-        'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
-        'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
-        'http://192.168.100.15/citizen-backend/api/citizen/verify-citizen.php',
-        'http://localhost/citizen-backend/api/citizen/verify-citizen.php',
-      ];
+      const isLocalhost =
+        Platform.OS === 'web' &&
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+      const candidateEndpoints = isLocalhost
+        ? [
+            'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
+            'http://localhost/citizen-backend/api/citizen/verify-citizen.php',
+            'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
+            `${API_BASE_URL}/verify-citizen.php`,
+          ]
+        : [
+            `${API_BASE_URL}/verify-citizen.php`,
+            'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
+            'http://192.168.100.15/citizen-backend/api/citizen/verify-citizen.php',
+            'http://localhost/citizen-backend/api/citizen/verify-citizen.php',
+          ];
 
       for (const endpoint of candidateEndpoints) {
         try {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 5000);
+          const timer = setTimeout(() => controller.abort(), 12000);
           const res = await fetch(endpoint, {
             method: 'POST',
             headers: {
