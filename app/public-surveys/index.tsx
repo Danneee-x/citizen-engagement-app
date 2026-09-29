@@ -47,115 +47,24 @@ export interface ConsultationItem {
   participantsCount: number;
 }
 
-export const SURVEYS_DATA: SurveyItem[] = [
-  {
-    id: 'srv-1',
-    title: 'Caloocan Urban Mobility & Bike Lane Expansion 2026',
-    shortDescription: 'Share your feedback on dedicated bike corridors, pedestrian walkability, and UV express terminal relocation along Samson Road & Monumento.',
-    category: 'Urban Mobility & Transport',
-    estimatedTime: '4 mins',
-    closingDate: 'August 31, 2026',
-    status: 'Open',
-    isPublicResults: true,
-    questions: [
-      {
-        id: 'q1',
-        title: 'How often do you commute or travel within Caloocan City using active transport (walking, cycling, e-scooter)?',
-        type: 'multiple_choice',
-        options: ['Daily', '3-4 times a week', 'Once a week', 'Rarely / Never'],
-      },
-      {
-        id: 'q2',
-        title: 'Which arterial routes do you think need immediate protected bike lane barriers?',
-        type: 'multiple_selection',
-        options: ['Samson Road (Monumento to Malabon boundary)', 'Camarin Road (North Caloocan)', 'Bagumbong - Bignay Access Road', 'Rizal Avenue Extension'],
-      },
-      {
-        id: 'q3',
-        title: 'Do you support relocating street-side tricycle queues into designated off-street multi-modal bays?',
-        type: 'yes_no',
-      },
-      {
-        id: 'q4',
-        title: 'Rate the overall pedestrian safety and streetlighting of your primary commute route:',
-        type: 'rating_scale',
-      },
-      {
-        id: 'q5',
-        title: '“The current pedestrian overpasses in Caloocan are well-maintained, accessible for PWDs, and safe at night.”',
-        type: 'likert_scale',
-      },
-      {
-        id: 'q6',
-        title: 'What is your primary Barangay or terminal checkpoint during rush hour?',
-        type: 'short_answer',
-      },
-      {
-        id: 'q7',
-        title: 'What specific mobility improvement would make the biggest positive difference for your daily travel in Caloocan?',
-        type: 'long_answer',
-      },
-    ],
-  },
-  {
-    id: 'srv-2',
-    title: 'Community Waste Segregation & Green Energy Initiative',
-    shortDescription: 'Evaluation of household garbage collection schedules, barangay composting hubs, and solar streetlighting rollout across Districts 1, 2, and 3.',
-    category: 'Environment & Sanitation',
-    estimatedTime: '3 mins',
-    closingDate: 'September 15, 2026',
-    status: 'Closing Soon',
-    isPublicResults: true,
-    questions: [
-      {
-        id: 'q2_1',
-        title: 'Does your household actively practice biodegradable vs non-biodegradable waste separation?',
-        type: 'yes_no',
-      },
-      {
-        id: 'q2_2',
-        title: 'Which environmental programs would you like Caloocan to prioritize?',
-        type: 'multiple_selection',
-        options: ['Barangay Materials Recovery Facilities (MRF)', 'River Cleanups & Trash Traps', 'Community Solar Streetlights', 'Plastic-for-Rice Incentive Programs'],
-      },
-      {
-        id: 'q2_3',
-        title: 'Rate the promptness of garbage collection trucks in your neighborhood:',
-        type: 'rating_scale',
-      },
-      {
-        id: 'q2_4',
-        title: 'Provide any suggestions to eliminate illegal dumping spots in your area:',
-        type: 'long_answer',
-      },
-    ],
-  },
-];
+export interface AnsweredRecord {
+  survey: SurveyItem;
+  answers: Record<string, any>;
+  dateSubmitted: string;
+}
 
-export const CONSULTATIONS_DATA: ConsultationItem[] = [
-  {
-    id: 'cons-1',
-    title: 'Draft Ordinance No. 2026-042: Night Market & Micro-Vendor Formalization Program',
-    category: 'Local Economic Development',
-    closingDate: 'September 10, 2026',
-    backgroundInfo:
-      'Caloocan City Council is drafting Ordinance 2026-042 to establish regulated, clean night market economic zones with subsidized power, sanitary water connections, and digital POS payment systems for micro-entrepreneurs and food vendors along designated pedestrian streets.',
-    objective:
-      'Balancing informal vendor livelihood opportunities with pedestrian walkability, food safety compliance, and zero-extortion security monitoring.',
-    participantsCount: 1420,
-  },
-  {
-    id: 'cons-2',
-    title: 'Comprehensive Youth Sports & After-School Tech Hub Expansion',
-    category: 'Youth & Education Policy',
-    closingDate: 'September 25, 2026',
-    backgroundInfo:
-      'The City Government is allocating ₱85M capital development funding to upgrade 15 barangay multi-purpose courts into covered climate-resilient community centers equipped with free public WiFi and AI Robotics coding learning pods for public school students.',
-    objective:
-      'Gathering citizen input on proposed locations, facility schedules, and security measures for youth hubs.',
-    participantsCount: 980,
-  },
-];
+const getStoredAnsweredSurveys = (): Record<string, AnsweredRecord> => {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const data = localStorage.getItem('civentral_answered_surveys');
+      if (data) return JSON.parse(data);
+    }
+  } catch (_) {}
+  return {};
+};
+
+export const SURVEYS_DATA: SurveyItem[] = [];
+export const CONSULTATIONS_DATA: ConsultationItem[] = [];
 
 export const LIKERT_OPTIONS = [
   'Strongly Disagree',
@@ -169,8 +78,10 @@ export default function PublicSurveysScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
 
-  // Active Tab: 'surveys' | 'consultations'
-  const [activeTab, setActiveTab] = useState<'surveys' | 'consultations'>('surveys');
+  // Active Tab: 'surveys' | 'answered'
+  const [activeTab, setActiveTab] = useState<'surveys' | 'answered'>('surveys');
+  const [answeredSurveys, setAnsweredSurveys] = useState<Record<string, AnsweredRecord>>(() => getStoredAnsweredSurveys());
+  const [viewingSubmission, setViewingSubmission] = useState<AnsweredRecord | null>(null);
 
   // Active Survey Questionnaire State
   const [activeSurvey, setActiveSurvey] = useState<SurveyItem | null>(null);
@@ -194,12 +105,64 @@ export default function PublicSurveysScreen() {
   const [isSubmittingConsultation, setIsSubmittingConsultation] = useState(false);
   const [consultationSuccessMsg, setConsultationSuccessMsg] = useState<string | null>(null);
 
+  const [surveysList, setSurveysList] = useState<SurveyItem[]>([]);
+  const [consultationsList, setConsultationsList] = useState<ConsultationItem[]>([]);
+
+  // Filter out already answered surveys from active surveys list so citizen cannot answer again!
+  const activeSurveysList = surveysList.filter(
+    (s) => !answeredSurveys[String(s.id)] && (!s.surveyCode || !answeredSurveys[String(s.surveyCode)])
+  );
+
+  // Deduplicate answered surveys list so each submission appears cleanly
+  const answeredList = React.useMemo(() => {
+    const seen = new Set<string>();
+    const list: AnsweredRecord[] = [];
+    for (const record of Object.values(answeredSurveys)) {
+      const key = String(record?.survey?.id || record?.survey?.surveyCode || record?.survey?.title || '');
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        list.push(record);
+      }
+    }
+    return list;
+  }, [answeredSurveys]);
+
+  const fetchBackendData = React.useCallback(async () => {
+    try {
+      const srvRes = await fetch('http://localhost/citizen-backend/api/citizen/get-surveys.php');
+      const srvJson = await srvRes.json();
+      if (srvJson?.success && Array.isArray(srvJson.data)) {
+        setSurveysList(srvJson.data);
+      } else {
+        setSurveysList([]);
+      }
+    } catch (_) {
+      setSurveysList([]);
+    }
+
+    try {
+      const consRes = await fetch('http://localhost/citizen-backend/api/citizen/get-consultations.php');
+      const consJson = await consRes.json();
+      if (consJson?.success && Array.isArray(consJson.data)) {
+        setConsultationsList(consJson.data);
+      } else {
+        setConsultationsList([]);
+      }
+    } catch (_) {
+      setConsultationsList([]);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchBackendData();
+  }, [fetchBackendData]);
+
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
-  }, []);
+    fetchBackendData().finally(() => setRefreshing(false));
+  }, [fetchBackendData]);
 
   const handleStartSurvey = (survey: SurveyItem) => {
     setActiveSurvey(survey);
@@ -220,11 +183,37 @@ export default function PublicSurveysScreen() {
     }
   };
 
-  const handleSubmitSurveyAnswers = () => {
+  const handleSubmitSurveyAnswers = async () => {
     if (!activeSurvey) return;
 
     setIsSubmittingSurvey(true);
-    setTimeout(() => {
+    try {
+      let overallRating: number | null = null;
+      let commentary: string | null = null;
+      for (const q of activeSurvey.questions) {
+        if (q.type === 'rating_scale' && answers[q.id]) {
+          overallRating = Number(answers[q.id]);
+        }
+        if (q.type === 'long_answer' && answers[q.id]) {
+          commentary = String(answers[q.id]);
+        }
+      }
+
+      await fetch('http://localhost/citizen-backend/api/citizen/submit-survey-response.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          survey_id: activeSurvey.id,
+          answers: answers,
+          citizen_name: 'Verified Citizen',
+          barangay: 'Barangay 178 (Camarin)',
+          overall_rating: overallRating,
+          commentary: commentary,
+        }),
+      }).catch((e) => console.log('Survey submit error:', e));
+    } catch (e) {
+      console.log('Submit error:', e);
+    } finally {
       setIsSubmittingSurvey(false);
       const now = new Date();
       const dateStr =
@@ -234,27 +223,64 @@ export default function PublicSurveysScreen() {
           year: 'numeric',
         }) + ` • ` + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
+      // Save to answeredSurveys state and localStorage so citizen cannot answer again!
+      const newRecord: AnsweredRecord = {
+        survey: activeSurvey,
+        answers: { ...answers },
+        dateSubmitted: dateStr,
+      };
+
+      setAnsweredSurveys((prev) => {
+        const updated = {
+          ...prev,
+          [String(activeSurvey.id)]: newRecord,
+          ...(activeSurvey.surveyCode ? { [String(activeSurvey.surveyCode)]: newRecord } : {}),
+        };
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('civentral_answered_surveys', JSON.stringify(updated));
+          }
+        } catch (_) {}
+        return updated;
+      });
+
       setSurveySubmittedData({
         surveyTitle: activeSurvey.title,
         dateSubmitted: dateStr,
         isPublicResults: activeSurvey.isPublicResults,
       });
-    }, 850);
+    }
   };
 
-  const handleSubmitConsultationOpinion = () => {
+  const handleSubmitConsultationOpinion = async () => {
     if (!consultationComment.trim()) {
       Alert.alert('Required Field', 'Please write your comment or suggestion for the consultation.');
       return;
     }
 
     setIsSubmittingConsultation(true);
-    setTimeout(() => {
+    try {
+      if (activeConsultation) {
+        await fetch('http://localhost/citizen-backend/api/citizen/submit-consultation-feedback.php', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            consultation_id: activeConsultation.id,
+            stance: consultationStance,
+            commentary: consultationComment,
+            citizen_name: 'Verified Citizen',
+            barangay: 'Barangay 176 (Bagong Silang)',
+          }),
+        }).catch((e) => console.log('Consultation submit error:', e));
+      }
+    } catch (e) {
+      console.log('Consultation error:', e);
+    } finally {
       setIsSubmittingConsultation(false);
       setConsultationSuccessMsg(
         'Your position and suggestions have been formally recorded and forwarded to the Caloocan City Legislative Committee.'
       );
-    }, 800);
+    }
   };
 
   const handleCloseConsultationModal = () => {
@@ -358,140 +384,215 @@ export default function PublicSurveysScreen() {
                     isDarkMode && activeTab !== 'surveys' && { color: '#94A3B8' },
                   ]}
                 >
-                  Active Surveys ({SURVEYS_DATA.length})
+                  Active Surveys ({activeSurveysList.length})
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={[
                   styles.tabButton,
-                  activeTab === 'consultations' && styles.tabButtonActive,
-                  activeTab === 'consultations' && isDarkMode && { backgroundColor: '#0284C7' },
+                  activeTab === 'answered' && styles.tabButtonActive,
+                  activeTab === 'answered' && isDarkMode && { backgroundColor: '#0284C7' },
                 ]}
-                onPress={() => setActiveTab('consultations')}
+                onPress={() => setActiveTab('answered')}
                 activeOpacity={0.8}
               >
                 <IconSymbol
-                  name="person.3.fill"
+                  name="checkmark.seal.fill"
                   size={16}
-                  color={activeTab === 'consultations' ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B'}
+                  color={activeTab === 'answered' ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B'}
                 />
                 <Text
                   style={[
                     styles.tabButtonText,
-                    activeTab === 'consultations' && styles.tabButtonTextActive,
-                    isDarkMode && activeTab !== 'consultations' && { color: '#94A3B8' },
+                    activeTab === 'answered' && styles.tabButtonTextActive,
+                    isDarkMode && activeTab !== 'answered' && { color: '#94A3B8' },
                   ]}
                 >
-                  Civic Consultations ({CONSULTATIONS_DATA.length})
+                  Answered Surveys ({answeredList.length})
                 </Text>
               </TouchableOpacity>
             </View>
 
-            {/* ── TAB 1: SURVEYS LIST ── */}
+            {/* ── TAB 1: ACTIVE SURVEYS LIST ── */}
             {activeTab === 'surveys' && (
               <View style={styles.listContainer}>
-                {SURVEYS_DATA.map((survey) => (
+                {activeSurveysList.length === 0 ? (
                   <View
-                    key={survey.id}
                     style={[
-                      styles.surveyCard,
+                      styles.emptyCard,
                       isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
                     ]}
                   >
-                    <View style={styles.surveyCardTop}>
-                      <Badge
-                        label={survey.category}
-                        variant="info"
-                      />
-                      <Badge
-                        label={survey.status.toUpperCase()}
-                        variant={survey.status === 'Closing Soon' ? 'warning' : 'success'}
-                      />
-                    </View>
-
-                    <Text style={[styles.surveyCardTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                      {survey.title}
-                    </Text>
-                    <Text style={[styles.surveyCardDesc, isDarkMode && { color: '#CBD5E1' }]}>
-                      {survey.shortDescription}
-                    </Text>
-
-                    <View style={styles.metaRow}>
-                      <View style={styles.metaItem}>
-                        <IconSymbol name="clock.fill" size={13} color="#0284C7" />
-                        <Text style={[styles.metaText, isDarkMode && { color: '#94A3B8' }]}>
-                          Est. {survey.estimatedTime}
-                        </Text>
-                      </View>
-                      <View style={styles.metaItem}>
-                        <IconSymbol name="calendar" size={13} color="#D97706" />
-                        <Text style={[styles.metaText, isDarkMode && { color: '#94A3B8' }]}>
-                          Closes: {survey.closingDate}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.startSurveyBtn}
-                      onPress={() => handleStartSurvey(survey)}
-                      activeOpacity={0.88}
+                    <View
+                      style={[
+                        styles.emptyIconCircle,
+                        {
+                          backgroundColor: isDarkMode
+                            ? '#1E293B'
+                            : answeredList.length > 0
+                            ? '#DCFCE7'
+                            : '#E0F2FE',
+                        },
+                      ]}
                     >
-                      <Text style={styles.startSurveyBtnText}>Answer Survey</Text>
-                      <IconSymbol name="arrow.right" size={14} color="#FFFFFF" />
-                    </TouchableOpacity>
+                      <IconSymbol
+                        name={answeredList.length > 0 ? 'checkmark.circle.fill' : 'list.bullet.clipboard.fill'}
+                        size={28}
+                        color={answeredList.length > 0 ? '#10B981' : '#0284C7'}
+                      />
+                    </View>
+                    <Text style={[styles.emptyTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                      {answeredList.length > 0 ? 'All Surveys Completed!' : 'No Active Surveys'}
+                    </Text>
+                    <Text style={[styles.emptySubtitle, isDarkMode && { color: '#94A3B8' }]}>
+                      {answeredList.length > 0
+                        ? 'You have already answered all currently open community surveys. You can view your submissions in the Answered Surveys tab.'
+                        : 'There are currently no open public surveys. Pull down to refresh or check back later for new community consultation forms.'}
+                    </Text>
+                    {answeredList.length > 0 && (
+                      <TouchableOpacity
+                        style={[styles.startSurveyBtn, { marginTop: 16 }]}
+                        onPress={() => setActiveTab('answered')}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.startSurveyBtnText}>View Answered Surveys ({answeredList.length})</Text>
+                        <IconSymbol name="chevron.right" size={14} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    )}
                   </View>
-                ))}
+                ) : (
+                  activeSurveysList.map((survey) => (
+                    <View
+                      key={survey.id}
+                      style={[
+                        styles.surveyCard,
+                        isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                      ]}
+                    >
+                      <View style={styles.surveyCardTop}>
+                        <Badge
+                          label={survey.category}
+                          variant="info"
+                        />
+                        <Badge
+                          label={survey.status.toUpperCase()}
+                          variant={survey.status === 'Closing Soon' ? 'warning' : 'success'}
+                        />
+                      </View>
+
+                      <Text style={[styles.surveyCardTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        {survey.title}
+                      </Text>
+                      <Text style={[styles.surveyCardDesc, isDarkMode && { color: '#CBD5E1' }]}>
+                        {survey.shortDescription}
+                      </Text>
+
+                      <View style={styles.metaRow}>
+                        <View style={styles.metaItem}>
+                          <IconSymbol name="clock.fill" size={13} color="#0284C7" />
+                          <Text style={[styles.metaText, isDarkMode && { color: '#94A3B8' }]}>
+                            Est. {survey.estimatedTime}
+                          </Text>
+                        </View>
+                        <View style={styles.metaItem}>
+                          <IconSymbol name="calendar" size={13} color="#D97706" />
+                          <Text style={[styles.metaText, isDarkMode && { color: '#94A3B8' }]}>
+                            Closes: {survey.closingDate}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.startSurveyBtn}
+                        onPress={() => handleStartSurvey(survey)}
+                        activeOpacity={0.88}
+                      >
+                        <Text style={styles.startSurveyBtnText}>Answer Survey</Text>
+                        <IconSymbol name="chevron.right" size={14} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
               </View>
             )}
 
-            {/* ── TAB 2: CONSULTATIONS LIST ── */}
-            {activeTab === 'consultations' && (
+            {/* ── TAB 2: ANSWERED SURVEYS LIST ── */}
+            {activeTab === 'answered' && (
               <View style={styles.listContainer}>
-                {CONSULTATIONS_DATA.map((cons) => (
+                {answeredList.length === 0 ? (
                   <View
-                    key={cons.id}
                     style={[
-                      styles.surveyCard,
+                      styles.emptyCard,
                       isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
                     ]}
                   >
-                    <View style={styles.surveyCardTop}>
-                      <Badge label={cons.category} variant="info" />
-                      <View style={styles.participantsBadge}>
-                        <IconSymbol name="person.2.fill" size={12} color="#0284C7" />
-                        <Text style={styles.participantsText}>
-                          {cons.participantsCount.toLocaleString()} Participated
-                        </Text>
-                      </View>
+                    <View style={[styles.emptyIconCircle, { backgroundColor: isDarkMode ? '#1E293B' : '#E0F2FE' }]}>
+                      <IconSymbol name="checkmark.seal.fill" size={28} color="#0284C7" />
                     </View>
-
-                    <Text style={[styles.surveyCardTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                      {cons.title}
+                    <Text style={[styles.emptyTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                      No Answered Surveys Yet
                     </Text>
-                    <Text style={[styles.surveyCardDesc, isDarkMode && { color: '#CBD5E1' }]} numberOfLines={3}>
-                      {cons.backgroundInfo}
+                    <Text style={[styles.emptySubtitle, isDarkMode && { color: '#94A3B8' }]}>
+                      When you answer surveys from the Active Surveys tab, they will appear here along with your submitted responses.
                     </Text>
-
-                    <View style={styles.metaRow}>
-                      <View style={styles.metaItem}>
-                        <IconSymbol name="calendar" size={13} color="#D97706" />
-                        <Text style={[styles.metaText, isDarkMode && { color: '#94A3B8' }]}>
-                          Feedback Period: Until {cons.closingDate}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      style={[styles.startSurveyBtn, { backgroundColor: '#7C3AED' }]}
-                      onPress={() => setActiveConsultation(cons)}
-                      activeOpacity={0.88}
-                    >
-                      <Text style={styles.startSurveyBtnText}>Read & Submit Opinion</Text>
-                      <IconSymbol name="bubble.left.fill" size={14} color="#FFFFFF" />
-                    </TouchableOpacity>
                   </View>
-                ))}
+                ) : (
+                  answeredList.map((item, idx) => (
+                    <View
+                      key={item.survey.id || `answered-${idx}`}
+                      style={[
+                        styles.surveyCard,
+                        isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                      ]}
+                    >
+                      <View style={styles.surveyCardTop}>
+                        <Badge label={item.survey.category || 'CIVIC SURVEY'} variant="info" />
+                        <Badge label="ANSWERED ✓" variant="success" />
+                      </View>
+
+                      <Text style={[styles.surveyCardTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        {item.survey.title}
+                      </Text>
+                      <Text style={[styles.surveyCardDesc, isDarkMode && { color: '#CBD5E1' }]} numberOfLines={2}>
+                        {item.survey.shortDescription || 'Your official survey feedback was submitted to Caloocan City.'}
+                      </Text>
+
+                      <View style={styles.metaRow}>
+                        <View style={styles.metaItem}>
+                          <IconSymbol name="checkmark.circle.fill" size={13} color="#10B981" />
+                          <Text style={[styles.metaText, { color: '#10B981', fontWeight: '700' }]}>
+                            Submitted: {item.dateSubmitted}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Action Row: Disabled "Already Answered" + "View Answers" */}
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                        <View
+                          style={[
+                            styles.answeredBadgeBtn,
+                            isDarkMode && { backgroundColor: '#152238', borderColor: '#334155' },
+                          ]}
+                        >
+                          <IconSymbol name="lock.fill" size={13} color="#94A3B8" />
+                          <Text style={[styles.answeredBadgeText, isDarkMode && { color: '#94A3B8' }]}>
+                            Already Answered
+                          </Text>
+                        </View>
+
+                        <TouchableOpacity
+                          style={styles.viewSubmissionBtn}
+                          onPress={() => setViewingSubmission(item)}
+                          activeOpacity={0.85}
+                        >
+                          <IconSymbol name="doc.text.fill" size={14} color="#FFFFFF" />
+                          <Text style={styles.viewSubmissionBtnText}>View Answers</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
               </View>
             )}
           </>
@@ -811,10 +912,11 @@ export default function PublicSurveysScreen() {
               onPress={() => {
                 setActiveSurvey(null);
                 setSurveySubmittedData(null);
+                setActiveTab('answered');
               }}
               activeOpacity={0.88}
             >
-              <Text style={styles.doneBtnText}>Return to Surveys List</Text>
+              <Text style={styles.doneBtnText}>View in Answered Surveys</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1069,6 +1171,108 @@ export default function PublicSurveysScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* ── VIEW SUBMITTED ANSWERS MODAL ── */}
+      {viewingSubmission && (
+        <Modal
+          visible={true}
+          animationType="slide"
+          transparent={false}
+          onRequestClose={() => setViewingSubmission(null)}
+        >
+          <SafeAreaView
+            style={[
+              styles.safeArea,
+              { backgroundColor: isDarkMode ? '#0B132B' : '#F8FAFC' },
+            ]}
+          >
+            <View
+              style={[
+                styles.modalNav,
+                isDarkMode && { backgroundColor: '#0B132B', borderBottomColor: '#1C2541' },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setViewingSubmission(null)}
+              >
+                <IconSymbol name="xmark" size={18} color={isDarkMode ? '#FFFFFF' : '#0F172A'} />
+              </TouchableOpacity>
+              <Text style={[styles.modalNavTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                My Survey Submission
+              </Text>
+              <View style={{ width: 38 }} />
+            </View>
+
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+              <View
+                style={[
+                  styles.questionnaireCard,
+                  isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                ]}
+              >
+                <View style={styles.surveyHeader}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Badge label={viewingSubmission.survey?.category || 'SURVEY'} variant="info" />
+                    <Badge label="COMPLETED ✓" variant="success" />
+                  </View>
+                  <Text style={[styles.questionnaireTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                    {viewingSubmission.survey?.title}
+                  </Text>
+                  <Text style={[styles.metaText, { marginTop: 6, color: '#10B981', fontWeight: '700' }]}>
+                    Submitted on: {viewingSubmission.dateSubmitted}
+                  </Text>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Question-by-question breakdown */}
+                {viewingSubmission.survey?.questions?.map((q, idx) => {
+                  const citizenAns = viewingSubmission.answers[q.id];
+                  return (
+                    <View key={q.id} style={styles.questionBlock}>
+                      <Text style={[styles.questionTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        {idx + 1}. {q.title}
+                      </Text>
+                      <View
+                        style={{
+                          backgroundColor: isDarkMode ? '#152238' : '#F1F5F9',
+                          padding: 14,
+                          borderRadius: 12,
+                          borderLeftWidth: 4,
+                          borderLeftColor: '#0284C7',
+                          marginTop: 8,
+                        }}
+                      >
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#0284C7', marginBottom: 4, letterSpacing: 0.5 }}>
+                          YOUR SUBMITTED RESPONSE
+                        </Text>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: isDarkMode ? '#F8FAFC' : '#1E293B', lineHeight: 20 }}>
+                          {Array.isArray(citizenAns)
+                            ? citizenAns.join(', ') || 'None selected'
+                            : citizenAns !== undefined && citizenAns !== null && String(citizenAns).trim() !== ''
+                            ? (q.type === 'rating_scale'
+                                ? `${citizenAns} / 5 Stars ★`
+                                : String(citizenAns))
+                            : 'No response provided'}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={[styles.doneBtn, { marginTop: 24 }]}
+                  onPress={() => setViewingSubmission(null)}
+                  activeOpacity={0.88}
+                >
+                  <Text style={styles.doneBtnText}>Close Answers View</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }
@@ -1642,5 +1846,78 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '700',
     color: '#0284C7',
+  },
+
+  /* Empty State */
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 19,
+    textAlign: 'center',
+    maxWidth: 290,
+  },
+  answeredBadgeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  answeredBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  viewSubmissionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#0284C7',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  viewSubmissionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });

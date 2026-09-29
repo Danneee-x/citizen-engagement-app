@@ -22,6 +22,7 @@ const MAPPING: IconMapping = {
   'person.text.rectangle.fill': 'badge',
   'heart.text.square.fill': 'volunteer-activism',
   'cross.case.fill': 'medical-services',
+  'figure.roll': 'accessible',
   'book.closed.fill': 'menu-book',
   'building.2.fill': 'domain',
   'briefcase.fill': 'work',

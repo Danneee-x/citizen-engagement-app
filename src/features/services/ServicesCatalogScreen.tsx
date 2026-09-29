@@ -70,16 +70,16 @@ const SERVICES_CATALOG: ServiceCatalogItem[] = [
     badgeVariant: 'danger',
     route: '/report-a-concern',
   },
-  // CITIZEN ID & REGISTRY SERVICES
+  // ID ISSUANCE SERVICES
   {
     id: 'SVC-CITIZEN-ID',
-    title: 'Citizen ID Application',
+    title: 'ID Issuance',
     category: 'BARANGAY',
-    description: 'Apply for official Caloocan Digital & Physical Citizen ID, renewal, or replacement with claim voucher.',
+    description: 'Apply for official Caloocan City IDs: Citizen ID, Barangay ID, Solo Parent ID, PWD ID, Senior Citizen ID, renewals, and replacements.',
     iconName: 'creditcard.fill',
     iconBg: '#E0E7FF',
     iconColor: '#4338CA',
-    badgeLabel: 'CITIZEN ID',
+    badgeLabel: 'ID ISSUANCE',
     badgeVariant: 'info',
     route: '/citizen-id-application',
   },
@@ -448,7 +448,7 @@ export function ServicesCatalogScreen() {
           k.includes(query) || query.includes(k)
         )) ||
       (item.id === 'SVC-CITIZEN-ID' &&
-        ['id', 'citizen id', 'card', 'valid id', 'identification', 'replacement', 'renewal', 'barangay id'].some((k) =>
+        ['id', 'id issuance', 'issuance', 'citizen id', 'barangay id', 'solo parent id', 'solo parent', 'pwd id', 'pwd', 'senior citizen id', 'senior id', 'senior citizen', 'osca', 'card', 'valid id', 'identification', 'replacement', 'renewal'].some((k) =>
           k.includes(query) || query.includes(k)
         )) ||
       (item.id === 'SVC-CERTIFICATES' &&

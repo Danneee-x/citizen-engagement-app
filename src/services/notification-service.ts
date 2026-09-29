@@ -1,63 +1,74 @@
+import { Platform } from 'react-native';
 import { API_BASE_URL } from './auth-service';
 
 export interface CivicAlert {
   id: string;
+  numericId?: number;
   title: string;
   body: string;
-  category: 'Broadcast' | 'Domain Update' | 'Emergency Alert';
+  bodyHtml?: string;
+  category: string;
+  priority?: string;
   timestamp: string;
+  createdAt?: string;
+  sender?: string;
+  attachmentUrl?: string | null;
   isRead: boolean;
 }
 
 export class NotificationService {
   /**
    * Fetch Real Citizen Notifications from PHP Backend API
-   * Endpoint: https://civentral.tech/api/citizen/get-notifications.php
+   * Endpoints: Localhost XAMPP or production civentral.tech
    */
   static async getCivicAlerts(identifier?: string): Promise<CivicAlert[]> {
-    try {
-      const endpoints = [`${API_BASE_URL}/notifications`, `${API_BASE_URL}/get-notifications.php`];
-      let response: Response | null = null;
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(ep, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email: identifier || '' }),
-          });
-          if (res.ok) {
-            response = res;
-            break;
-          }
-        } catch {}
-      }
+    const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
+    const hostname = isWeb ? window.location.hostname : 'localhost';
 
-      if (!response) return [];
+    const candidateEndpoints = [
+      `http://${hostname}/citizen-backend/api/citizen/get-notifications.php`,
+      `http://${hostname}/citizen-information-and-engagement-final-try/api/citizen/get-notifications.php`,
+      `http://localhost/citizen-backend/api/citizen/get-notifications.php`,
+      `http://localhost/citizen-information-and-engagement-final-try/api/citizen/get-notifications.php`,
+      `http://127.0.0.1/citizen-backend/api/citizen/get-notifications.php`,
+      `${API_BASE_URL}/get-notifications.php`,
+      `${API_BASE_URL}/notifications`,
+    ];
 
-      const text = await response.text();
-      let json: any;
+    for (const ep of candidateEndpoints) {
       try {
-        json = JSON.parse(text);
-      } catch {
-        return [];
-      }
+        const res = await fetch(ep, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
 
-      if (json.status === 'success' && Array.isArray(json.data)) {
-        return json.data.map((item: any) => ({
-          id: item.notification_id || item.id || `ALT-${item.id}`,
-          title: item.title || 'City Announcement',
-          body: item.body || item.message || '',
-          category: item.category || 'Broadcast',
-          timestamp: item.timestamp || item.created_at || 'Just now',
-          isRead: Boolean(item.is_read || item.isRead),
-        }));
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && Array.isArray(json.data)) {
+            return json.data.map((item: any) => ({
+              id: item.id || `ALT-${item.numericId || Math.random()}`,
+              numericId: item.numericId,
+              title: item.title || 'City Announcement',
+              body: item.body || item.message || '',
+              bodyHtml: item.bodyHtml || item.body || '',
+              category: item.category || 'Broadcast',
+              priority: item.priority || 'Normal',
+              timestamp: item.timestamp || 'Just now',
+              createdAt: item.createdAt,
+              sender: item.sender || 'Caloocan Public Information Office',
+              attachmentUrl: item.attachmentUrl || null,
+              isRead: Boolean(item.isRead),
+            }));
+          }
+        }
+      } catch (err) {
+        // Try next endpoint in loop
       }
-
-      return [];
-    } catch {
-      return [];
     }
+
+    return [];
   }
 }
+

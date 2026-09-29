@@ -12,7 +12,7 @@ export default function CitizenIdApplicationLayout() {
   return (
     <View style={[styles.shell, isDarkMode && { backgroundColor: '#0B132B' }]}>
       <HeaderBar
-        subtitle="Citizen ID & Registry Services"
+        subtitle="Official ID Issuance Services"
         onNotificationPress={() => router.push('/(tabs)/notifications' as any)}
       />
       <View style={styles.content}>

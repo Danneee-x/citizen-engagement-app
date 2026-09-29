@@ -52,14 +52,14 @@ export default function ReportConcernScreen() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
-  const [barangay, setBarangay] = useState('Barangay 171 (Bagumbong)');
+  const [barangay, setBarangay] = useState('');
   const [isGpsPinned, setIsGpsPinned] = useState(false);
   const [gpsCoords, setGpsCoords] = useState<string | null>(null);
 
   // Contact Info
-  const [contactName, setContactName] = useState('Danny Espelita Jr');
-  const [contactPhone, setContactPhone] = useState('09171234567');
-  const [contactEmail, setContactEmail] = useState('danny.resident@caloocan.ph');
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   // File / Photo Uploads
@@ -87,9 +87,9 @@ export default function ReportConcernScreen() {
         const session = AuthService.getCurrentUser();
         if (session.user) {
           const u = session.user;
-          setContactName(`${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Danny Espelita Jr');
-          setContactEmail(u.email || 'danny.resident@caloocan.ph');
-          setContactPhone(u.mobile_number || '09171234567');
+          setContactName(`${u.first_name || ''} ${u.last_name || ''}`.trim());
+          setContactEmail(u.email || '');
+          setContactPhone(u.mobile_number || '');
         }
 
         const res = await ProfileService.getProfile(session.email || undefined, session.citizen_user_id || undefined);

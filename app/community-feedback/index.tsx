@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -16,10 +17,11 @@ import * as ImagePicker from 'expo-image-picker';
 import { IconSymbol } from '@/src/components/ui/icon-symbol';
 import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
+import { AuthService, API_BASE_URL } from '@/src/services/auth-service';
 
 export const MUNICIPAL_SERVICES = [
   'Education & Scholarship Portal',
-  'Citizen ID Application',
+  'ID Issuance Application',
   'Certificate & Document Requests',
   'Report a Concern / Grievance',
   'Business Permit & Licensing (BPLO)',
@@ -96,12 +98,69 @@ export default function CommunityFeedbackScreen() {
     }
   };
 
-  const handleSubmitFeedback = () => {
+  const handleSubmitFeedback = async () => {
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    const user = AuthService.getCurrentUser();
+    const citizenName = user.fullName || user.email?.split('@')[0] || 'Anonymous Citizen';
+    const citizenEmail = user.email || '';
+    const citizenBarangay = user.barangay || 'Barangay Central';
 
+    const payload = {
+      serviceName: selectedService,
+      referenceNumber: referenceNumber.trim(),
+      overallRating,
+      qualityRating,
+      staffRating,
+      comments: comments.trim(),
+      citizenName,
+      citizenEmail,
+      citizenBarangay,
+    };
+
+    const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
+    const hostname = isWeb ? window.location.hostname : 'localhost';
+
+    const candidateEndpoints = [
+      `http://${hostname}/citizen-backend/api/citizen/submit-community-feedback.php`,
+      `http://${hostname}/citizen-information-and-engagement-final-try/api/citizen/submit-community-feedback.php`,
+      `http://localhost/citizen-backend/api/citizen/submit-community-feedback.php`,
+      `http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-community-feedback.php`,
+      `http://127.0.0.1/citizen-backend/api/citizen/submit-community-feedback.php`,
+      `${API_BASE_URL}/submit-community-feedback.php`,
+    ];
+
+    let resultData: any = null;
+
+    for (const ep of candidateEndpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.status === 'success' && json.data) {
+            resultData = json.data;
+            break;
+          }
+        }
+      } catch (err) {
+        // try next candidate endpoint
+      }
+    }
+
+    setIsSubmitting(false);
+
+    if (resultData) {
+      setSubmittedData({
+        referenceNumber: resultData.referenceNumber,
+        submissionDate: resultData.submissionDate || new Date().toLocaleString(),
+        serviceName: resultData.serviceName || selectedService,
+        overallRating: resultData.overallRating || overallRating,
+      });
+    } else {
       const ref = `CAL-FDB-2026-${Math.floor(1000 + Math.random() * 9000)}`;
       const now = new Date();
       const dateStr =
@@ -117,7 +176,7 @@ export default function CommunityFeedbackScreen() {
         serviceName: selectedService,
         overallRating,
       });
-    }, 850);
+    }
   };
 
   const handleResetForm = () => {

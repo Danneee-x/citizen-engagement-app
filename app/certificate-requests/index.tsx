@@ -132,18 +132,16 @@ export default function CertificateRequestsScreen() {
   const [selectedCert, setSelectedCert] = useState<CertificateType | null>(null);
 
   // Application Form Fields
-  const [applicantName, setApplicantName] = useState('Danny Espelita Jr');
-  const [streetAddress, setStreetAddress] = useState('Block 12 Lot 5, Sampaguita St.');
-  const [barangay, setBarangay] = useState('Barangay 171 (Bagumbong)');
-  const [phone, setPhone] = useState('09171234567');
-  const [email, setEmail] = useState('danny.resident@caloocan.ph');
+  const [applicantName, setApplicantName] = useState('');
+  const [streetAddress, setStreetAddress] = useState('');
+  const [barangay, setBarangay] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
 
   const [selectedPurpose, setSelectedPurpose] = useState(PURPOSE_OPTIONS[0]);
   const [purposeDetails, setPurposeDetails] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
-  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string; uri?: string }[]>([
-    { id: 'f-1', name: 'philsys_valid_id.pdf', size: '1.1 MB' },
-  ]);
+  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string; uri?: string }[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -169,9 +167,9 @@ export default function CertificateRequestsScreen() {
         const session = AuthService.getCurrentUser();
         if (session.user) {
           const u = session.user;
-          setApplicantName(`${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Danny Espelita Jr');
-          setEmail(u.email || 'danny.resident@caloocan.ph');
-          setPhone(u.mobile_number || '09171234567');
+          setApplicantName(`${u.first_name || ''} ${u.last_name || ''}`.trim());
+          setEmail(u.email || '');
+          setPhone(u.mobile_number || '');
         }
 
         const res = await ProfileService.getProfile(session.email || undefined, session.citizen_user_id || undefined);
