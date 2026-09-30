@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -62,6 +62,10 @@ export const INITIAL_REPORTS: CitizenReport[] = [];
 export default function MyReportsScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
+
+  useEffect(() => {
+    router.replace('/report-a-concern?tab=my_reports' as any);
+  }, [router]);
 
   const [reports, setReports] = useState<CitizenReport[]>(INITIAL_REPORTS);
   const [filterCategory, setFilterCategory] = useState<'ALL' | 'ACTIVE' | 'RESOLVED'>('ALL');

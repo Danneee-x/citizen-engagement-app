@@ -133,7 +133,7 @@ const SERVICES_CATALOG: ServiceCatalogItem[] = [
     iconColor: '#0284C7',
     badgeLabel: 'LIVE TRACKER',
     badgeVariant: 'info',
-    route: '/my-reports',
+    route: '/report-a-concern?tab=my_reports',
   },
 
   // 1. DISASTER & EMERGENCY SERVICES

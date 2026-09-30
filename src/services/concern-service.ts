@@ -290,4 +290,61 @@ export class ConcernService {
       },
     };
   }
+
+  /**
+   * Fetches citizen grievance reports from the database with multi-endpoint fallback
+   */
+  public static async getMyReports(
+    citizenUserId?: number | null,
+    citizenEmail?: string | null
+  ): Promise<any[]> {
+    const isLocalhost =
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    const params = new URLSearchParams();
+    if (citizenUserId) params.append('citizen_user_id', String(citizenUserId));
+    if (citizenEmail) params.append('citizen_email', citizenEmail);
+
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+
+    const candidateEndpoints = isLocalhost
+      ? [
+          `http://localhost/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
+          `http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php${queryStr}`,
+          `http://127.0.0.1/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
+          `${API_BASE_URL}/submit-concern.php${queryStr}`,
+        ]
+      : [
+          `${API_BASE_URL}/submit-concern.php${queryStr}`,
+          `http://localhost/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
+          `http://192.168.100.15/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
+          `http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php${queryStr}`,
+        ];
+
+    for (const endpoint of candidateEndpoints) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 7000);
+        const res = await fetch(endpoint, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.status === 'success' && Array.isArray(json.recent_submissions)) {
+            return json.recent_submissions;
+          }
+        }
+      } catch (err) {
+        // try next endpoint
+      }
+    }
+    return [];
+  }
 }
+

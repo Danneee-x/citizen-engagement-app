@@ -102,9 +102,9 @@ export default function CommunityFeedbackScreen() {
     setIsSubmitting(true);
 
     const user = AuthService.getCurrentUser();
-    const citizenName = user.fullName || user.email?.split('@')[0] || 'Anonymous Citizen';
+    const citizenName = user.user?.fullName || `${user.user?.first_name || ''} ${user.user?.last_name || ''}`.trim() || user.email?.split('@')[0] || 'Anonymous Citizen';
     const citizenEmail = user.email || '';
-    const citizenBarangay = user.barangay || 'Barangay Central';
+    const citizenBarangay = user.user?.barangay || 'Barangay Central';
 
     const payload = {
       serviceName: selectedService,
