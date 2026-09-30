@@ -213,6 +213,18 @@ export const CITIZEN_ID_STAGES = [
   { id: 'completed', label: 'Completed', desc: 'ID Card claimed & activated' },
 ] as const;
 
+export const detectDistrictFromBarangay = (bgy: string): string => {
+  if (!bgy) return 'District 1';
+  const match = bgy.match(/(?:Barangay|Brgy\.?)\s*(\d+)/i);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    if (num >= 1 && num <= 131) return 'District 2';
+    if (num >= 132 && num <= 177) return 'District 1';
+    if (num >= 178) return 'District 3';
+  }
+  return 'District 1';
+};
+
 export default function IdIssuanceApplicationScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
@@ -261,6 +273,7 @@ export default function IdIssuanceApplicationScreen() {
   // Address & Barangay State
   const [streetAddress, setStreetAddress] = useState('');
   const [barangay, setBarangay] = useState('');
+  const [district, setDistrict] = useState<string>('District 1');
 
   // Contact Information State
   const [phone, setPhone] = useState('');
@@ -318,7 +331,13 @@ export default function IdIssuanceApplicationScreen() {
           const d = res.data;
           if (d.birthDate) setBirthDate(d.birthDate);
           if (d.civilStatus) setCivilStatus(d.civilStatus);
-          if (d.barangay) setBarangay(d.barangay);
+          if (d.barangay) {
+            setBarangay(d.barangay);
+            setDistrict(detectDistrictFromBarangay(d.barangay));
+          }
+          if (d.district) {
+            setDistrict(d.district);
+          }
           if (d.address) setStreetAddress(d.address);
         }
       } catch (err) {
@@ -421,6 +440,9 @@ export default function IdIssuanceApplicationScreen() {
       `${API_BASE_URL}/submit-id-application.php`,
     ];
 
+    const session = AuthService.getCurrentUser();
+    const currentUserId = session.citizen_user_id || session.user?.citizen_user_id || null;
+
     const payload = {
       reference_no: ref,
       id_category: activeCategory.id,
@@ -437,13 +459,13 @@ export default function IdIssuanceApplicationScreen() {
       email: email.trim(),
       street_address: streetAddress.trim(),
       barangay: barangay.trim(),
-      district,
-      resident_since: residentSince.trim(),
+      district: district || detectDistrictFromBarangay(barangay),
+      resident_since: residencyLength || '2015',
       issuing_bureau: activeCategory.issuingBureau,
       primary_doc_name: idDocFile?.name || activeCategory.primaryDocName,
       claim_office: activeCategory.claimOffice,
       estimated_turnaround: activeCategory.estimatedTurnaround,
-      citizen_user_id: userProfile?.citizen_user_id || null,
+      citizen_user_id: currentUserId,
     };
 
     try {
@@ -1681,10 +1703,49 @@ export default function IdIssuanceApplicationScreen() {
                     isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                   ]}
                   value={barangay}
-                  onChangeText={setBarangay}
+                  onChangeText={(text) => {
+                    setBarangay(text);
+                    const autoD = detectDistrictFromBarangay(text);
+                    if (autoD) setDistrict(autoD);
+                  }}
                   placeholder="e.g. Barangay 171 (Bagumbong)"
                   placeholderTextColor="#94A3B8"
                 />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
+                  Caloocan Legislative District *
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {['District 1', 'District 2', 'District 3'].map((d) => {
+                    const isSel = district === d;
+                    return (
+                      <TouchableOpacity
+                        key={d}
+                        style={[
+                          styles.chipItem,
+                          isSel && styles.chipItemSelected,
+                          isDarkMode && {
+                            backgroundColor: isSel ? '#1D4ED8' : '#152238',
+                            borderColor: isSel ? '#60A5FA' : '#3A506B',
+                          },
+                        ]}
+                        onPress={() => setDistrict(d)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            isSel && styles.chipTextSelected,
+                            isDarkMode && { color: isSel ? '#FFFFFF' : '#CBD5E1' },
+                          ]}
+                        >
+                          {d}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </View>
 
               <View style={styles.divider} />
