@@ -603,17 +603,21 @@ export function VerifyCitizenScreen() {
 
       const candidateEndpoints = isLocalhost
         ? [
-            'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
             'http://localhost/citizen-backend/api/citizen/verify-citizen.php',
+            'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
+            'http://127.0.0.1/citizen-backend/api/citizen/verify-citizen.php',
             'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
             `${API_BASE_URL}/verify-citizen.php`,
           ]
         : [
             `${API_BASE_URL}/verify-citizen.php`,
-            'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
-            'http://192.168.100.15/citizen-backend/api/citizen/verify-citizen.php',
             'http://localhost/citizen-backend/api/citizen/verify-citizen.php',
+            'http://192.168.100.15/citizen-backend/api/citizen/verify-citizen.php',
+            'http://localhost/civentral-citizen-information-and-engagement/api/citizen/verify-citizen.php',
           ];
+
+      let isSuccess = false;
+      let lastErrorMessage = '';
 
       for (const endpoint of candidateEndpoints) {
         try {
@@ -634,18 +638,32 @@ export function VerifyCitizenScreen() {
             const data = await res.json();
             if (data && data.status === 'success') {
               console.log('Successfully saved to citizen_verification database:', data);
+              isSuccess = true;
               break;
+            } else if (data && data.message) {
+              lastErrorMessage = data.message;
             }
+          } else {
+            try {
+              const errData = await res.json();
+              if (errData?.message) lastErrorMessage = errData.message;
+            } catch (_) {}
           }
-        } catch (fetchErr) {
-          // Attempt next candidate endpoint
+        } catch (fetchErr: any) {
+          lastErrorMessage = fetchErr?.message || 'Connection failed';
         }
       }
-    } catch (err) {
+
+      if (isSuccess) {
+        setCurrentStep(4);
+      } else {
+        setErrorMessage(lastErrorMessage || 'Failed to submit verification to the registry database. Please try again.');
+      }
+    } catch (err: any) {
       console.warn('Citizen Registry verification error:', err);
+      setErrorMessage(err?.message || 'An unexpected error occurred during submission.');
     } finally {
       setIsSubmitting(false);
-      setCurrentStep(4);
     }
   };
 
