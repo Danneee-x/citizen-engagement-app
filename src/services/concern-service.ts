@@ -165,7 +165,7 @@ export class ConcernService {
 
     let detectedCategory = payload.category;
     let priority = 'Medium';
-    let recommendedDepartment = 'Caloocan Public Assistance Bureau';
+    let recommendedDepartment = 'Citizenship Information & Engagement (CIE)';
     let confidenceScore = '95% - Gemini AI Multi-Modal Engine';
     let similarConcerns = 'No duplicate reports found';
 
@@ -173,39 +173,104 @@ export class ConcernService {
       textCombo.includes('garbage') ||
       textCombo.includes('waste') ||
       textCombo.includes('trash') ||
+      textCombo.includes('sanitation') ||
       payload.category === 'Garbage & Waste'
     ) {
-      detectedCategory = 'Garbage & Waste Management';
+      detectedCategory = 'Garbage & Sanitation Management';
       priority = 'Medium';
-      recommendedDepartment = 'Environmental / Waste Management Department';
+      recommendedDepartment = 'Health & Sanitation Management (HSM)';
       confidenceScore = '97% - Gemini AI Multi-Modal Engine';
     } else if (
       textCombo.includes('road') ||
       textCombo.includes('pothole') ||
+      textCombo.includes('bridge') ||
+      textCombo.includes('streetlights') ||
+      textCombo.includes('light') ||
       payload.category === 'Road & Infrastructure'
     ) {
-      detectedCategory = 'Road & Infrastructure Repairs';
-      priority = 'High';
-      recommendedDepartment = 'City Engineering & Public Works Office';
+      detectedCategory = 'Public Assets & Facilities Repairs';
+      priority = textCombo.includes('light') ? 'Medium' : 'High';
+      recommendedDepartment = 'Public Assets & Facilities Management (PAFM)';
       confidenceScore = '98% - Gemini AI Multi-Modal Engine';
     } else if (
       textCombo.includes('flood') ||
       textCombo.includes('drain') ||
+      textCombo.includes('canal') ||
       payload.category === 'Flooding & Drainage'
     ) {
-      detectedCategory = 'Flooding & Drainage Maintenance';
-      priority = 'High';
-      recommendedDepartment = 'Caloocan Flood Control & Drainage Bureau';
+      detectedCategory = 'Flooding & Drainage Emergency';
+      priority = 'Urgent';
+      recommendedDepartment = 'Disaster Risk Reduction & Emergency Response (DRRM)';
       confidenceScore = '96% - Gemini AI Multi-Modal Engine';
     } else if (
+      textCombo.includes('traffic') ||
+      textCombo.includes('parking') ||
       textCombo.includes('safety') ||
       textCombo.includes('police') ||
+      textCombo.includes('disturbance') ||
       payload.category === 'Public Safety'
     ) {
-      detectedCategory = 'Public Safety & Peace Order';
-      priority = 'Urgent';
-      recommendedDepartment = 'Caloocan Public Safety & Police Bureau (CPTMD)';
+      detectedCategory = 'Transport & Public Safety';
+      priority = textCombo.includes('police') ? 'Urgent' : 'High';
+      recommendedDepartment = 'Transport & Mobility Management (TMM)';
       confidenceScore = '99% - Gemini AI Multi-Modal Engine';
+    } else if (
+      textCombo.includes('indigent') ||
+      textCombo.includes('burial') ||
+      textCombo.includes('senior') ||
+      textCombo.includes('welfare') ||
+      textCombo.includes('solo parent')
+    ) {
+      detectedCategory = 'Social Welfare & Community Assistance';
+      priority = 'Medium';
+      recommendedDepartment = 'Social Services Management (SSM)';
+      confidenceScore = '95% - Gemini AI Multi-Modal Engine';
+    } else if (
+      textCombo.includes('permit') ||
+      textCombo.includes('license') ||
+      textCombo.includes('business')
+    ) {
+      detectedCategory = 'Permits & Commercial Licensing';
+      priority = 'Medium';
+      recommendedDepartment = 'Permits & Licensing Management (PLM)';
+      confidenceScore = '95% - Gemini AI Multi-Modal Engine';
+    } else if (
+      textCombo.includes('zoning') ||
+      textCombo.includes('housing') ||
+      textCombo.includes('building')
+    ) {
+      detectedCategory = 'Urban Planning & Housing Compliance';
+      priority = 'Medium';
+      recommendedDepartment = 'Urban Planning Zoning & Housing (UPZH)';
+      confidenceScore = '94% - Gemini AI Multi-Modal Engine';
+    } else if (
+      textCombo.includes('tax') ||
+      textCombo.includes('treasury') ||
+      textCombo.includes('rpt')
+    ) {
+      detectedCategory = 'Municipal Revenue & Treasury';
+      priority = 'Low';
+      recommendedDepartment = 'Revenue Collection & Treasury Services (RCTS)';
+      confidenceScore = '95% - Gemini AI Multi-Modal Engine';
+    } else if (
+      textCombo.includes('scholarship') ||
+      textCombo.includes('student') ||
+      textCombo.includes('grant')
+    ) {
+      detectedCategory = 'Education & Scholarships';
+      priority = 'Low';
+      recommendedDepartment = 'Education & Scholarship (ESMS)';
+      confidenceScore = '96% - Gemini AI Multi-Modal Engine';
+    } else if (
+      textCombo.includes('app') ||
+      textCombo.includes('login') ||
+      textCombo.includes('technical') ||
+      textCombo.includes('bug')
+    ) {
+      detectedCategory = 'IT & Technical Support';
+      priority = 'Medium';
+      recommendedDepartment = 'Information Technology Department (IT)';
+      confidenceScore = '98% - Gemini AI Multi-Modal Engine';
     }
 
     return {
