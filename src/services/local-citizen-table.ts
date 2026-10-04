@@ -56,8 +56,8 @@ let localCitizenUsersTable: CitizenUserRecord[] = [
   },
 ];
 
-// Active session holder
-let activeSessionUser: CitizenUserRecord | null = localCitizenUsersTable[0];
+// Active session holder (defaults to null for clean authentication)
+let activeSessionUser: CitizenUserRecord | null = null;
 
 export class LocalCitizenTable {
   /**
@@ -72,7 +72,7 @@ export class LocalCitizenTable {
 
     const nextId = record.citizen_user_id || (localCitizenUsersTable.length > 0
       ? Math.max(...localCitizenUsersTable.map((u) => u.citizen_user_id)) + 1
-      : 1001);
+      : 0);
 
     const now = new Date().toISOString();
     const newUser: CitizenUserRecord = {

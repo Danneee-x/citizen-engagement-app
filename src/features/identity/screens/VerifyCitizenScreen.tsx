@@ -990,9 +990,12 @@ export function VerifyCitizenScreen() {
           currentUser.email || undefined
         );
 
-        if (verifRes && verifRes.status === 'success' && verifRes.data) {
+        if (!verifRes || verifRes.verification_status === 'Not_Submitted' || !verifRes.data) {
+          setAppStatus('Not_Submitted');
+          setAppData(null);
+        } else if (verifRes && verifRes.status === 'success' && verifRes.data) {
           const d = verifRes.data;
-          setAppStatus(d.verification_status);
+          setAppStatus(d.verification_status || 'Not_Submitted');
           setAppData(d);
 
           // If Returned for correction or Rejected, pre-fill demographic fields for rework/appeal
@@ -1043,6 +1046,9 @@ export function VerifyCitizenScreen() {
             }
             setIsPrefilled(true);
           }
+        } else {
+          setAppStatus('Not_Submitted');
+          setAppData(null);
         }
 
         // 2. Pre-fill from active auth session if present and not already filled
@@ -1594,7 +1600,7 @@ export function VerifyCitizenScreen() {
                 Connecting to Caloocan Civil & Barangay Registry database
               </Text>
             </View>
-          ) : (appStatus === 'Pending' || appStatus === 'Under_Review') ? (
+          ) : ((appStatus === 'Pending' || appStatus === 'Under_Review') && appData) ? (
             /* GUARD: APPLICATION UNDER REVIEW */
             <View style={[styles.card, styles.guardCard, { backgroundColor: dmCard, borderColor: isDarkMode ? '#F59E0B' : '#FDE68A' }]}>
               <View style={[styles.guardIconBox, { backgroundColor: isDarkMode ? '#78350F' : '#FEF3C7' }]}>
@@ -1658,7 +1664,7 @@ export function VerifyCitizenScreen() {
                 <Text style={[styles.secondaryButtonText, isDarkMode && { color: '#CBD5E1' }]}>Back to Dashboard</Text>
               </TouchableOpacity>
             </View>
-          ) : appStatus === 'Approved' ? (
+          ) : (appStatus === 'Approved' && appData) ? (
             /* GUARD: OFFICIAL CITIZEN UNIFIED RESIDENT CARD & CIVIC DIRECTORY */
             <View style={{ width: '100%', gap: 16 }}>
               {/* Header Status Bar */}

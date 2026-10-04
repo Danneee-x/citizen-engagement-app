@@ -69,7 +69,7 @@ export class ProfileService {
         // Fallback to Local Mapping Table
         const localUser = identifier
           ? LocalCitizenTable.findByEmail(identifier)
-          : (phone ? LocalCitizenTable.findByPhone(phone) : (citizenUserId ? LocalCitizenTable.findById(citizenUserId) : LocalCitizenTable.getActiveSession()));
+          : (phone ? LocalCitizenTable.findByPhone(phone) : (citizenUserId ? LocalCitizenTable.findById(citizenUserId) : null));
 
         if (localUser) {
           return {
@@ -89,9 +89,9 @@ export class ProfileService {
               barangay: localUser.barangay || '',
               birthDate: localUser.birth_date || '',
               civilStatus: localUser.civil_status || '',
-              citizenId: `CIV-2026-${String(localUser.citizen_user_id).padStart(5, '0')}`,
+              citizenId: localUser.citizen_user_id ? `CIV-2026-${String(localUser.citizen_user_id).padStart(5, '0')}` : '',
               status: localUser.status || 'Active',
-              isVerified: true,
+              isVerified: Boolean(localUser.registry_completed),
               registryCompleted: Boolean(localUser.registry_completed),
               biometricEnabled: Boolean(localUser.biometric_enabled),
               memberSince: localUser.created_at || '2026-01-01',
@@ -219,9 +219,19 @@ export class ProfileService {
     message?: string;
   }> {
     try {
+      if ((!citizenUserId || citizenUserId <= 0) && (!email || !email.trim())) {
+        return {
+          status: 'success',
+          data: null,
+          verification_status: 'Not_Submitted',
+          is_verified: false,
+          message: 'No active user session or verification inquiry.'
+        };
+      }
+
       const queryParams = new URLSearchParams();
-      if (citizenUserId) queryParams.append('citizen_user_id', citizenUserId.toString());
-      if (email) queryParams.append('email', email);
+      if (citizenUserId && citizenUserId > 0) queryParams.append('citizen_user_id', citizenUserId.toString());
+      if (email && email.trim()) queryParams.append('email', email.trim());
 
       const endpoints = [
         `${API_BASE_URL}/verification-status.php?${queryParams.toString()}`,
@@ -244,9 +254,9 @@ export class ProfileService {
         } catch {}
       }
 
-      return { status: 'error', verification_status: 'Not_Submitted', message: 'Unable to reach verification status service' };
+      return { status: 'success', data: null, verification_status: 'Not_Submitted', is_verified: false, message: 'Unable to reach verification status service' };
     } catch (err: any) {
-      return { status: 'error', verification_status: 'Not_Submitted', message: err?.message };
+      return { status: 'success', data: null, verification_status: 'Not_Submitted', is_verified: false, message: err?.message };
     }
   }
 }

@@ -63,7 +63,7 @@ export class AuthService {
 
       // Sync into local mapping table
       LocalCitizenTable.insert({
-        citizen_user_id: data.user.citizen_user_id || this.currentUserId || 1001,
+        citizen_user_id: data.user.citizen_user_id || this.currentUserId || undefined,
         first_name: data.user.first_name || '',
         middle_name: data.user.middle_name || '',
         has_no_middle_name: data.user.has_no_middle_name || 0,
@@ -82,7 +82,7 @@ export class AuthService {
     const isGuestSession = this.isGuest || (!this.currentUserEmail && !this.currentUserPhone && !this.currentUserId);
     const localUser = this.currentUserEmail
       ? LocalCitizenTable.findByEmail(this.currentUserEmail)
-      : (this.currentUserId ? LocalCitizenTable.findById(this.currentUserId) : LocalCitizenTable.getActiveSession());
+      : (this.currentUserId ? LocalCitizenTable.findById(this.currentUserId) : null);
 
     return {
       isGuest: isGuestSession,
