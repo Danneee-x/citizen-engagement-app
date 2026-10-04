@@ -1381,28 +1381,30 @@ export function VerifyCitizenScreen() {
     setIsSubmitting(true);
     try {
       const currentUser = AuthService.getCurrentUser();
-      const userId = currentUser.citizen_user_id || 1001;
+      const userId = currentUser.citizen_user_id || undefined;
 
-      // 1. Update citizen verification details in local store & active session
-      LocalCitizenTable.update(userId, {
-        first_name: firstName.trim(),
-        middle_name: middleName.trim() || null,
-        last_name: lastName.trim(),
-        suffix: suffix.trim() || null,
-        registry_completed: 1,
-        birth_date: birthDate,
-        place_of_birth: placeOfBirth.trim(),
-        civil_status: civilStatus,
-        district: activeDistrict.shortName,
-        barangay,
-        street_address: streetAddress.trim(),
-        years_resident: yearsResident.trim(),
-        employment_status: employmentStatus,
-        occupation,
-        educational_attainment: educationalAttainment,
-        valid_id_type: selectedIdType,
-        valid_id_number: idNumber.trim(),
-      });
+      // 1. Update citizen verification details in local store & active session if userId exists
+      if (userId) {
+        LocalCitizenTable.update(userId, {
+          first_name: firstName.trim(),
+          middle_name: middleName.trim() || null,
+          last_name: lastName.trim(),
+          suffix: suffix.trim() || null,
+          registry_completed: 1,
+          birth_date: birthDate,
+          place_of_birth: placeOfBirth.trim(),
+          civil_status: civilStatus,
+          district: activeDistrict.shortName,
+          barangay,
+          street_address: streetAddress.trim(),
+          years_resident: yearsResident.trim(),
+          employment_status: employmentStatus,
+          occupation,
+          educational_attainment: educationalAttainment,
+          valid_id_type: selectedIdType,
+          valid_id_number: idNumber.trim(),
+        });
+      }
 
       // Ensure photo URIs are full base64 Data URIs rather than local browser memory blobs
       let finalIdPhoto = idImageUri;
@@ -1467,7 +1469,7 @@ export function VerifyCitizenScreen() {
 
       // 2. Transmit to MySQL citizen_verification database via API
       const payload = {
-        citizen_user_id: currentUser.citizen_user_id || userId,
+        citizen_user_id: currentUser.citizen_user_id || undefined,
         email: currentUser.email || undefined,
         phone: currentUser.phone || undefined,
         first_name: firstName.trim(),
