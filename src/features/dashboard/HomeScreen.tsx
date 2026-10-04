@@ -189,6 +189,13 @@ export function HomeScreen() {
     useState<AnnouncementItem | null>(null);
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
 
+  const [verificationData, setVerificationData] = useState<{
+    status: 'Not_Submitted' | 'Pending' | 'Under_Review' | 'Returned_For_Correction' | 'Approved' | 'Rejected';
+    citizen_id_number?: string;
+    admin_action_notes?: string;
+    rejection_reason?: string;
+  }>({ status: 'Not_Submitted' });
+
   const loadProfile = async () => {
     if (isGuestMode) return;
     const emailToUse = activeEmail || userProfile.email;
@@ -203,6 +210,30 @@ export function HomeScreen() {
         ...data,
         status: data.status || "Active",
       }));
+    }
+
+    try {
+      const verifRes = await ProfileService.getVerificationStatus(
+        activeUserId || userProfile.citizen_user_id,
+        emailToUse
+      );
+      if (verifRes && verifRes.verification_status) {
+        setVerificationData({
+          status: verifRes.verification_status,
+          citizen_id_number: verifRes.citizen_id_number,
+          admin_action_notes: verifRes.admin_action_notes,
+          rejection_reason: verifRes.rejection_reason,
+        });
+        if (verifRes.citizen_id_number) {
+          setUserProfile((prev) => ({
+            ...prev,
+            citizenId: verifRes.citizen_id_number || prev.citizenId,
+            isVerified: verifRes.verification_status === 'Approved',
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading verification status:', e);
     }
   };
 
@@ -384,7 +415,13 @@ export function HomeScreen() {
                   styles.pillarCard,
                   { backgroundColor: dm ? "#210C36" : "#FAF5FF" },
                 ]}
-                onPress={() => setIsQrModalVisible(true)}
+                onPress={() => {
+                  if (verificationData.status === 'Approved') {
+                    router.push("/(auth)/verify-citizen");
+                  } else {
+                    setIsQrModalVisible(true);
+                  }
+                }}
                 activeOpacity={0.8}
               >
                 <View style={[styles.pillarIconBadge, { backgroundColor: "#9333EA" }]}>
@@ -460,34 +497,71 @@ export function HomeScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* VERIFY CITIZENSHIP BANNER (NAVIGATES TO NEW VERIFY CITIZEN SCREEN) */}
-          <TouchableOpacity
-            style={[
-              styles.registerNowBanner,
-              {
-                backgroundColor: dm ? "#0284C7" : "#176B87",
-              },
-            ]}
-            onPress={() => router.push("/(auth)/verify-citizen" as any)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Verify Citizenship"
-          >
-            <View style={styles.registerNowBannerLeft}>
-              <View style={styles.registerNowIconBox}>
-                <IconSymbol name="checkmark.seal.fill" size={20} color="#FFFFFF" />
-              </View>
-              <View style={styles.registerNowTextBlock}>
-                <Text style={styles.registerNowBannerText}>
-                  Verify Citizenship
-                </Text>
-                <Text style={styles.registerNowBannerSub} numberOfLines={1}>
-                  Get your citizen account verified
-                </Text>
-              </View>
-            </View>
-            <IconSymbol name="chevron.right" size={16} color="#FFFFFF" />
-          </TouchableOpacity>
+          {/* DYNAMIC CITIZEN VERIFICATION BANNER */}
+          {(() => {
+            const vStatus = verificationData.status;
+            let bannerBg = dm ? "#0284C7" : "#176B87";
+            let iconName: any = "checkmark.seal.fill";
+            let bannerTitle = "Verify Citizenship";
+            let bannerSub = "Get your citizen account verified";
+            let targetRoute: any = "/(auth)/verify-citizen";
+
+            if (vStatus === 'Pending' || vStatus === 'Under_Review') {
+              bannerBg = "#D97706";
+              iconName = "clock.fill";
+              bannerTitle = "Application Under Review";
+              bannerSub = "City Civil Registry staff are verifying your documents";
+              targetRoute = "/(auth)/verify-citizen";
+            } else if (vStatus === 'Returned_For_Correction') {
+              bannerBg = "#EA580C";
+              iconName = "exclamationmark.triangle.fill";
+              bannerTitle = "Action Required: Rework Requested";
+              bannerSub = "Admin requested corrections. Tap to review & resubmit";
+              targetRoute = "/(auth)/verify-citizen";
+            } else if (vStatus === 'Approved') {
+              bannerBg = "#059669";
+              iconName = "checkmark.seal.fill";
+              bannerTitle = "Verified Citizen Account";
+              bannerSub = `ID: ${verificationData.citizen_id_number || userProfile.citizenId || 'CAL-2026-000004'} • Tap to View Citizen ID Card`;
+              targetRoute = "/(auth)/verify-citizen";
+            } else if (vStatus === 'Rejected') {
+              bannerBg = "#DC2626";
+              iconName = "xmark.circle.fill";
+              bannerTitle = "Application Rejected";
+              bannerSub = "Tap to review administrative reason & re-apply";
+              targetRoute = "/(auth)/verify-citizen";
+            }
+
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.registerNowBanner,
+                  {
+                    backgroundColor: bannerBg,
+                  },
+                ]}
+                onPress={() => router.push(targetRoute)}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel={bannerTitle}
+              >
+                <View style={styles.registerNowBannerLeft}>
+                  <View style={styles.registerNowIconBox}>
+                    <IconSymbol name={iconName} size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.registerNowTextBlock}>
+                    <Text style={styles.registerNowBannerText}>
+                      {bannerTitle}
+                    </Text>
+                    <Text style={styles.registerNowBannerSub} numberOfLines={1}>
+                      {bannerSub}
+                    </Text>
+                  </View>
+                </View>
+                <IconSymbol name="chevron.right" size={16} color="#FFFFFF" />
+              </TouchableOpacity>
+            );
+          })()}
 
           <View style={styles.serviceGrid}>
             <TouchableOpacity

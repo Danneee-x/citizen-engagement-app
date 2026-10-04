@@ -13,6 +13,7 @@ export interface CitizenProfileData {
   phone: string;
   address: string;
   city: string;
+  district?: string;
   barangay: string;
   birthDate: string;
   civilStatus: string;
@@ -199,4 +200,54 @@ export class ProfileService {
       return { status: 'success', message: 'Profile details saved locally.' };
     }
   }
+
+  /**
+   * Fetch Citizen Identity Verification Status from PHP Backend
+   */
+  static async getVerificationStatus(citizenUserId?: number, email?: string): Promise<{
+    status: 'success' | 'error';
+    is_verified?: boolean;
+    verification_status?: 'Not_Submitted' | 'Pending' | 'Under_Review' | 'Returned_For_Correction' | 'Approved' | 'Rejected';
+    citizen_id_number?: string;
+    photo_1x1_url?: string;
+    signature_photo_url?: string;
+    qr_code_token?: string;
+    qr_code_image_url?: string;
+    rejection_reason?: string;
+    admin_action_notes?: string;
+    data?: any;
+    message?: string;
+  }> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (citizenUserId) queryParams.append('citizen_user_id', citizenUserId.toString());
+      if (email) queryParams.append('email', email);
+
+      const endpoints = [
+        `${API_BASE_URL}/verification-status.php?${queryParams.toString()}`,
+        `http://192.168.1.5/citizen-backend/api/citizen/verification-status.php?${queryParams.toString()}`,
+        `http://localhost/citizen-backend/api/citizen/verification-status.php?${queryParams.toString()}`,
+      ];
+
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.status === 'success') {
+              return data;
+            }
+          }
+        } catch {}
+      }
+
+      return { status: 'error', verification_status: 'Not_Submitted', message: 'Unable to reach verification status service' };
+    } catch (err: any) {
+      return { status: 'error', verification_status: 'Not_Submitted', message: err?.message };
+    }
+  }
 }
+
