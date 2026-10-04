@@ -1746,7 +1746,7 @@ export function VerifyCitizenScreen() {
                   }}
                 >
                   <Image
-                    source={require('../../assets/images/building-bg.jpg')}
+                    source={require('@/assets/images/building-bg.png')}
                     style={{
                       width: '100%',
                       height: '100%',
