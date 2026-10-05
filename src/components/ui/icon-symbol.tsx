@@ -84,6 +84,8 @@ const MAPPING: IconMapping = {
   'checkmark': 'check',
   'camera.fill': 'photo-camera',
   'photo.fill': 'photo',
+  'printer.fill': 'print',
+  'square.and.arrow.up': 'share',
 };
 
 export type IconSymbolName = keyof typeof MAPPING;

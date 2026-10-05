@@ -13,6 +13,7 @@ export interface CitizenProfileData {
   phone: string;
   address: string;
   city: string;
+  district?: string;
   barangay: string;
   birthDate: string;
   civilStatus: string;
@@ -68,7 +69,7 @@ export class ProfileService {
         // Fallback to Local Mapping Table
         const localUser = identifier
           ? LocalCitizenTable.findByEmail(identifier)
-          : (phone ? LocalCitizenTable.findByPhone(phone) : (citizenUserId ? LocalCitizenTable.findById(citizenUserId) : LocalCitizenTable.getActiveSession()));
+          : (phone ? LocalCitizenTable.findByPhone(phone) : (citizenUserId ? LocalCitizenTable.findById(citizenUserId) : null));
 
         if (localUser) {
           return {
@@ -88,9 +89,9 @@ export class ProfileService {
               barangay: localUser.barangay || '',
               birthDate: localUser.birth_date || '',
               civilStatus: localUser.civil_status || '',
-              citizenId: `CIV-2026-${String(localUser.citizen_user_id).padStart(5, '0')}`,
+              citizenId: localUser.citizen_user_id ? `CIV-2026-${String(localUser.citizen_user_id).padStart(5, '0')}` : '',
               status: localUser.status || 'Active',
-              isVerified: true,
+              isVerified: Boolean(localUser.registry_completed),
               registryCompleted: Boolean(localUser.registry_completed),
               biometricEnabled: Boolean(localUser.biometric_enabled),
               memberSince: localUser.created_at || '2026-01-01',
@@ -199,4 +200,64 @@ export class ProfileService {
       return { status: 'success', message: 'Profile details saved locally.' };
     }
   }
+
+  /**
+   * Fetch Citizen Identity Verification Status from PHP Backend
+   */
+  static async getVerificationStatus(citizenUserId?: number, email?: string): Promise<{
+    status: 'success' | 'error';
+    is_verified?: boolean;
+    verification_status?: 'Not_Submitted' | 'Pending' | 'Under_Review' | 'Returned_For_Correction' | 'Approved' | 'Rejected';
+    citizen_id_number?: string;
+    photo_1x1_url?: string;
+    signature_photo_url?: string;
+    qr_code_token?: string;
+    qr_code_image_url?: string;
+    rejection_reason?: string;
+    admin_action_notes?: string;
+    data?: any;
+    message?: string;
+  }> {
+    try {
+      if ((!citizenUserId || citizenUserId <= 0) && (!email || !email.trim())) {
+        return {
+          status: 'success',
+          data: null,
+          verification_status: 'Not_Submitted',
+          is_verified: false,
+          message: 'No active user session or verification inquiry.'
+        };
+      }
+
+      const queryParams = new URLSearchParams();
+      if (citizenUserId && citizenUserId > 0) queryParams.append('citizen_user_id', citizenUserId.toString());
+      if (email && email.trim()) queryParams.append('email', email.trim());
+
+      const endpoints = [
+        `${API_BASE_URL}/verification-status.php?${queryParams.toString()}`,
+        `http://192.168.1.5/citizen-backend/api/citizen/verification-status.php?${queryParams.toString()}`,
+        `http://localhost/citizen-backend/api/citizen/verification-status.php?${queryParams.toString()}`,
+      ];
+
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(ep, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.status === 'success') {
+              return data;
+            }
+          }
+        } catch {}
+      }
+
+      return { status: 'success', data: null, verification_status: 'Not_Submitted', is_verified: false, message: 'Unable to reach verification status service' };
+    } catch (err: any) {
+      return { status: 'success', data: null, verification_status: 'Not_Submitted', is_verified: false, message: err?.message };
+    }
+  }
 }
+

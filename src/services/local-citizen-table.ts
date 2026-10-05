@@ -26,38 +26,10 @@ export interface CitizenUserRecord extends CitizenUser {
 }
 
 // In-memory local mapping table records
-let localCitizenUsersTable: CitizenUserRecord[] = [
-  {
-    citizen_user_id: 1001,
-    first_name: 'Danny',
-    middle_name: 'Toledano',
-    has_no_middle_name: 0,
-    last_name: 'Espelita',
-    suffix: 'Jr',
-    email: 'danny.espelita@civentral.ph',
-    mobile_number: '09171234567',
-    status: 'Active',
-    registry_completed: 0,
-    failed_attempts: 0,
-    last_login: new Date().toISOString(),
-    biometric_enabled: 1,
-    birth_date: '1998-05-15',
-    place_of_birth: 'Caloocan City',
-    civil_status: 'Single',
-    district: 'District 1',
-    barangay: 'Barangay 171 (Bagumbong)',
-    street_address: 'Block 12 Lot 5, Sampaguita St.',
-    years_resident: '12',
-    employment_status: 'Employed (Private Sector)',
-    occupation: 'Corporate / Office Employee',
-    educational_attainment: 'College / Bachelor’s Degree Graduate',
-    created_at: '2026-01-10T08:30:00Z',
-    updated_at: new Date().toISOString(),
-  },
-];
+let localCitizenUsersTable: CitizenUserRecord[] = [];
 
-// Active session holder
-let activeSessionUser: CitizenUserRecord | null = localCitizenUsersTable[0];
+// Active session holder (defaults to null for clean authentication)
+let activeSessionUser: CitizenUserRecord | null = null;
 
 export class LocalCitizenTable {
   /**
@@ -72,7 +44,7 @@ export class LocalCitizenTable {
 
     const nextId = record.citizen_user_id || (localCitizenUsersTable.length > 0
       ? Math.max(...localCitizenUsersTable.map((u) => u.citizen_user_id)) + 1
-      : 1001);
+      : 0);
 
     const now = new Date().toISOString();
     const newUser: CitizenUserRecord = {

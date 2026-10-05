@@ -19,6 +19,7 @@ import { useTheme } from '@/src/context/ThemeContext';
 
 export interface SurveyItem {
   id: string;
+  surveyCode?: string;
   title: string;
   shortDescription: string;
   category: string;
