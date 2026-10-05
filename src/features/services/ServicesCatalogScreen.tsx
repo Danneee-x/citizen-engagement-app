@@ -122,19 +122,6 @@ const SERVICES_CATALOG: ServiceCatalogItem[] = [
     badgeVariant: 'warning',
     route: '/community-feedback',
   },
-  // MY REPORTS
-  {
-    id: 'SVC-MY-REPORTS',
-    title: 'My Reports & Grievances',
-    category: 'BARANGAY',
-    description: 'Track real-time progress, dispatch updates & provide resolution feedback on your submitted concerns.',
-    iconName: 'list.bullet.rectangle.fill',
-    iconBg: '#E0F2FE',
-    iconColor: '#0284C7',
-    badgeLabel: 'LIVE TRACKER',
-    badgeVariant: 'info',
-    route: '/report-a-concern?tab=my_reports',
-  },
 
   // 1. DISASTER & EMERGENCY SERVICES
   {
@@ -444,11 +431,11 @@ export function ServicesCatalogScreen() {
       item.title.toLowerCase().includes(query) ||
       item.description.toLowerCase().includes(query) ||
       (item.id === 'SVC-CONCERN' &&
-        ['concern', 'complaint', 'grievance', 'report', 'issue', 'hazard', 'garbage', 'pothole', 'streetlights'].some((k) =>
+        ['concern', 'complaint', 'grievance', 'report', 'issue', 'hazard', 'garbage', 'pothole', 'streetlights', 'my reports', 'reports', 'tracked concerns', 'ticket', 'status', 'resolution'].some((k) =>
           k.includes(query) || query.includes(k)
         )) ||
       (item.id === 'SVC-CITIZEN-ID' &&
-        ['id', 'id issuance', 'issuance', 'citizen id', 'barangay id', 'solo parent id', 'solo parent', 'pwd id', 'pwd', 'senior citizen id', 'senior id', 'senior citizen', 'osca', 'card', 'valid id', 'identification', 'replacement', 'renewal'].some((k) =>
+        ['id', 'id issuance', 'issuance', 'citizen id', 'barangay id', 'solo parent id', 'solo parent', 'pwd id', 'pwd', 'senior citizen id', 'senior id', 'senior citizen', 'osca', 'card', 'valid id', 'identification', 'replacement', 'renewal', 'id status', 'application status', 'claim voucher', 'tracker'].some((k) =>
           k.includes(query) || query.includes(k)
         )) ||
       (item.id === 'SVC-CERTIFICATES' &&
@@ -461,10 +448,6 @@ export function ServicesCatalogScreen() {
         )) ||
       (item.id === 'SVC-FEEDBACK' &&
         ['feedback', 'rating', 'rate', 'review', 'satisfaction', 'stars', 'evaluation', 'comment'].some((k) =>
-          k.includes(query) || query.includes(k)
-        )) ||
-      (item.id === 'SVC-MY-REPORTS' &&
-        ['my reports', 'reports', 'tracked concerns', 'grievance', 'ticket', 'status', 'resolution'].some((k) =>
           k.includes(query) || query.includes(k)
         ));
 

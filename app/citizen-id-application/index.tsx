@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -18,6 +19,7 @@ import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
 import { AuthService, API_BASE_URL } from '@/src/services/auth-service';
 import { ProfileService } from '@/src/services/profile-service';
+import { IdIssuanceService, IdApplicationRecord } from '@/src/services/id-issuance-service';
 
 export interface IdCategoryOption {
   id: string;
@@ -225,13 +227,56 @@ export const detectDistrictFromBarangay = (bgy: string): string => {
   return 'District 1';
 };
 
+export const getCategoryForApp = (catId: string): IdCategoryOption => {
+  return ID_CATEGORIES.find((c) => c.id === catId) || ID_CATEGORIES[0];
+};
+
+export const getIdStageIndex = (status: string): number => {
+  const s = (status || '').toLowerCase();
+  if (s.includes('rejected')) return -1;
+  if (s.includes('claim')) return 4;
+  if (s.includes('ready')) return 3;
+  if (s.includes('approv') || s.includes('process')) return 2;
+  if (s.includes('under review') || s.includes('evaluat')) return 1;
+  return 0;
+};
+
+export const getStatusBadgeInfo = (status: string) => {
+  const s = (status || '').toLowerCase();
+  if (s.includes('reject')) {
+    return { label: 'REJECTED', variant: 'danger' as const, color: '#EF4444', bg: '#FEE2E2', border: '#FCA5A5' };
+  }
+  if (s.includes('claim')) {
+    return { label: 'CLAIMED', variant: 'neutral' as const, color: '#047857', bg: '#D1FAE5', border: '#6EE7B7' };
+  }
+  if (s.includes('ready')) {
+    return { label: 'READY FOR RELEASE', variant: 'info' as const, color: '#7C3AED', bg: '#EDE9FE', border: '#C4B5FD' };
+  }
+  if (s.includes('approv')) {
+    return { label: 'APPROVED', variant: 'success' as const, color: '#16A34A', bg: '#DCFCE7', border: '#86EFAC' };
+  }
+  if (s.includes('under review')) {
+    return { label: 'UNDER REVIEW', variant: 'info' as const, color: '#0284C7', bg: '#E0F2FE', border: '#7DD3FC' };
+  }
+  return { label: 'PENDING REVIEW', variant: 'warning' as const, color: '#D97706', bg: '#FEF3C7', border: '#FDE68A' };
+};
+
 export default function IdIssuanceApplicationScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; tab?: string }>();
   const { isDarkMode } = useTheme();
+
+  // Tab Navigation: 'apply' (Apply for ID) or 'status' (My Applications & Status)
+  const [activeTab, setActiveTab] = useState<'apply' | 'status'>((params.tab as any) === 'status' ? 'status' : 'apply');
 
   // Selected ID Category State (null = show Selection list; string = open that ID application form)
   const [selectedId, setSelectedId] = useState<string | null>(params.id || null);
+
+  // Live Applications tracking state
+  const [applications, setApplications] = useState<IdApplicationRecord[]>([]);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [expandedAppId, setExpandedAppId] = useState<number | null>(null);
 
   // Application Type State
   const [appType, setAppType] = useState<string>(APPLICATION_TYPES[0].id);
@@ -240,6 +285,16 @@ export default function IdIssuanceApplicationScreen() {
   const [oldIdNumber, setOldIdNumber] = useState('');
 
   // Citizen Information State
+  /**
+   * Sanitizes personal names and text fields (first, middle, last name, suffix, civil status, etc.)
+   * Strictly blocks all numbers (0-9) and special characters (!@#$%^&* etc.).
+   * Allows only alphabetic letters (including Filipino / Spanish characters like ñ, Ñ),
+   * spaces, and standard name punctuation (period, hyphen, apostrophe).
+   */
+  const sanitizePersonalName = (val: string): string => {
+    return val.replace(/[^a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.\-']/g, '');
+  };
+
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -304,6 +359,37 @@ export default function IdIssuanceApplicationScreen() {
 
   const activeCategory = ID_CATEGORIES.find((c) => c.id === selectedId) || null;
 
+  // Fetch applications for status tracking
+  const fetchApplications = async () => {
+    setIsLoadingApplications(true);
+    try {
+      const session = AuthService.getCurrentUser();
+      const list = await IdIssuanceService.getMyApplications(
+        session?.citizen_user_id || session?.user?.citizen_user_id,
+        session?.email || session?.user?.email
+      );
+      setApplications(list);
+    } catch (err) {
+      console.warn('Failed to fetch ID applications:', err);
+    } finally {
+      setIsLoadingApplications(false);
+    }
+  };
+
+  // Initial load
+  useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  // Sync route query parameters
+  useEffect(() => {
+    if (params.tab === 'status') {
+      setActiveTab('status');
+    } else if (params.id) {
+      setActiveTab('apply');
+    }
+  }, [params.tab, params.id]);
+
   // Auto-select if passed in query param
   useEffect(() => {
     if (params.id && ID_CATEGORIES.some((c) => c.id === params.id)) {
@@ -318,10 +404,10 @@ export default function IdIssuanceApplicationScreen() {
         const session = AuthService.getCurrentUser();
         if (session.user) {
           const u = session.user;
-          if (u.first_name) setFirstName(u.first_name);
-          if (u.middle_name) setMiddleName(u.middle_name);
-          if (u.last_name) setLastName(u.last_name);
-          if (u.suffix) setSuffix(u.suffix);
+          if (u.first_name) setFirstName(sanitizePersonalName(u.first_name));
+          if (u.middle_name) setMiddleName(sanitizePersonalName(u.middle_name));
+          if (u.last_name) setLastName(sanitizePersonalName(u.last_name));
+          if (u.suffix) setSuffix(sanitizePersonalName(u.suffix));
           if (u.email) setEmail(u.email);
           if (u.mobile_number) setPhone(u.mobile_number);
         }
@@ -330,13 +416,13 @@ export default function IdIssuanceApplicationScreen() {
         if (res.status === 'success' && res.data) {
           const d = res.data;
           if (d.birthDate) setBirthDate(d.birthDate);
-          if (d.civilStatus) setCivilStatus(d.civilStatus);
+          if (d.civilStatus) setCivilStatus(sanitizePersonalName(d.civilStatus));
           if (d.barangay) {
             setBarangay(d.barangay);
             setDistrict(detectDistrictFromBarangay(d.barangay));
           }
-          if (d.district) {
-            setDistrict(d.district);
+          if ((d as any).district) {
+            setDistrict((d as any).district);
           }
           if (d.address) setStreetAddress(d.address);
         }
@@ -349,9 +435,9 @@ export default function IdIssuanceApplicationScreen() {
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => {
+    fetchApplications().finally(() => {
       setRefreshing(false);
-    }, 600);
+    });
   }, []);
 
   const handlePickDocument = async (type: 'id' | 'support' | 'photo') => {
@@ -388,6 +474,11 @@ export default function IdIssuanceApplicationScreen() {
 
     if (!firstName.trim() || !lastName.trim()) {
       Alert.alert('Required Field', 'Please enter your complete legal name.');
+      return;
+    }
+    const invalidPattern = /[0-9!@#$%^&*()_+=\[\]{};:"\\|<>/?`~]/;
+    if (invalidPattern.test(firstName) || invalidPattern.test(lastName) || invalidPattern.test(middleName) || invalidPattern.test(suffix)) {
+      Alert.alert('Invalid Name', 'Personal information (names) cannot contain numbers or special characters.');
       return;
     }
     if (!streetAddress.trim() || !barangay.trim()) {
@@ -469,23 +560,15 @@ export default function IdIssuanceApplicationScreen() {
     };
 
     try {
-      for (const ep of candidateEndpoints) {
-        try {
-          const res = await fetch(ep, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          if (res.ok) {
-            break;
-          }
-        } catch {}
-      }
+      await IdIssuanceService.submitApplication(payload);
     } catch (err) {
       console.warn('ID Application live submission error:', err);
     }
 
     setIsSubmitting(false);
+
+    // Refresh application status list
+    fetchApplications();
 
     setSubmittedData({
       referenceNumber: ref,
@@ -719,6 +802,19 @@ export default function IdIssuanceApplicationScreen() {
             {/* Actions */}
             <View style={styles.actionButtonsCol}>
               <TouchableOpacity
+                style={styles.viewStatusBtn}
+                onPress={() => {
+                  setSubmittedData(null);
+                  setSelectedId(null);
+                  setActiveTab('status');
+                }}
+                activeOpacity={0.88}
+              >
+                <IconSymbol name="list.bullet.rectangle.fill" size={16} color="#FFFFFF" />
+                <Text style={styles.viewStatusBtnText}>View in Application Status</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={styles.anotherBtn}
                 onPress={handleReset}
                 activeOpacity={0.85}
@@ -735,10 +831,7 @@ export default function IdIssuanceApplicationScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        ) : !activeCategory ? (
-          /* ========================================================================= */
-          /* VIEW 1: ID SELECTION SCREEN (CHOOSE WHICH ID TO APPLY FOR)                */
-          /* ========================================================================= */
+        ) : (
           <>
             {/* Top Back Navigation to Services Directory */}
             <TouchableOpacity
@@ -761,26 +854,120 @@ export default function IdIssuanceApplicationScreen() {
               </Text>
             </TouchableOpacity>
 
-            {/* Header Banner */}
+            {/* Segmented Toggle Switch: Apply for ID | Application Status */}
             <View
               style={[
-                styles.headerBannerCard,
-                isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                styles.tabSegmentContainer,
+                isDarkMode && styles.tabSegmentContainerDark,
               ]}
             >
-              <View style={styles.bannerTopRow}>
-                <View style={[styles.iconCircle, { backgroundColor: '#E0E7FF' }]}>
-                  <IconSymbol name="creditcard.fill" size={24} color="#4338CA" />
-                </View>
-                <Badge label="OFFICIAL ID ISSUANCE" variant="info" />
-              </View>
-              <Text style={[styles.serviceTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                ID Issuance Services
-              </Text>
-              <Text style={[styles.serviceExplanation, isDarkMode && { color: '#94A3B8' }]}>
-                Choose the official government identification card you wish to apply for. Click any card below to open the dedicated application form and submit your credentials.
-              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.tabSegmentButton,
+                  activeTab === 'apply' && styles.tabSegmentButtonActive,
+                ]}
+                onPress={() => setActiveTab('apply')}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  name="plus.circle.fill"
+                  size={15}
+                  color={activeTab === 'apply' ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B')}
+                />
+                <Text
+                  style={[
+                    styles.tabSegmentText,
+                    activeTab === 'apply' && styles.tabSegmentTextActive,
+                    isDarkMode && activeTab !== 'apply' && { color: '#94A3B8' },
+                  ]}
+                >
+                  Apply for ID
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.tabSegmentButton,
+                  activeTab === 'status' && styles.tabSegmentButtonActive,
+                ]}
+                onPress={() => setActiveTab('status')}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  name="list.bullet.rectangle.fill"
+                  size={15}
+                  color={activeTab === 'status' ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B')}
+                />
+                <Text
+                  style={[
+                    styles.tabSegmentText,
+                    activeTab === 'status' && styles.tabSegmentTextActive,
+                    isDarkMode && activeTab !== 'status' && { color: '#94A3B8' },
+                  ]}
+                >
+                  Application Status {applications.length > 0 ? `(${applications.length})` : ''}
+                </Text>
+              </TouchableOpacity>
             </View>
+
+            {/* TAB 1: APPLY FOR ID */}
+            {activeTab === 'apply' && (
+              <>
+                {!activeCategory ? (
+                  <>
+                    {/* Header Banner */}
+                    <View
+                      style={[
+                        styles.headerBannerCard,
+                        isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                      ]}
+                    >
+                      <View style={styles.bannerTopRow}>
+                        <View style={[styles.iconCircle, { backgroundColor: '#E0E7FF' }]}>
+                          <IconSymbol name="creditcard.fill" size={24} color="#4338CA" />
+                        </View>
+                        <Badge label="OFFICIAL ID ISSUANCE" variant="info" />
+                      </View>
+                      <Text style={[styles.serviceTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        ID Issuance Services
+                      </Text>
+                      <Text style={[styles.serviceExplanation, isDarkMode && { color: '#94A3B8' }]}>
+                        Choose the official government identification card you wish to apply for. Click any card below to open the dedicated application form and submit your credentials.
+                      </Text>
+                    </View>
+
+                    {/* Featured Live Status Tracker Card */}
+                    <View
+                      style={[
+                        styles.featuredTrackerCard,
+                        isDarkMode && styles.featuredTrackerCardDark,
+                      ]}
+                    >
+                      <View style={styles.featuredTrackerTop}>
+                        <View style={[styles.trackerIconCircle, { backgroundColor: '#EDE9FE' }]}>
+                          <IconSymbol name="list.bullet.rectangle.fill" size={20} color="#7C3AED" />
+                        </View>
+                        <Badge
+                          label={applications.length > 0 ? `${applications.length} FILED` : 'LIVE TRACKER'}
+                          variant={applications.length > 0 ? 'success' : 'info'}
+                        />
+                      </View>
+                      <Text style={[styles.featuredTrackerTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        My ID Applications & Status
+                      </Text>
+                      <Text style={[styles.featuredTrackerDesc, isDarkMode && { color: '#94A3B8' }]}>
+                        Track real-time progress, document reviews & claim voucher schedules on your submitted ID applications.
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.featuredTrackerAction}
+                        onPress={() => setActiveTab('status')}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.featuredTrackerActionText}>
+                          Open Application Status &gt;
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
 
             {/* List of 5 ID Cards to Choose from */}
             <View style={styles.selectionCardsContainer}>
@@ -1141,7 +1328,7 @@ export default function IdIssuanceApplicationScreen() {
                       isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                     ]}
                     value={firstName}
-                    onChangeText={setFirstName}
+                    onChangeText={(val) => setFirstName(sanitizePersonalName(val))}
                     placeholder="First Name"
                     placeholderTextColor="#94A3B8"
                   />
@@ -1157,7 +1344,7 @@ export default function IdIssuanceApplicationScreen() {
                       isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                     ]}
                     value={middleName}
-                    onChangeText={setMiddleName}
+                    onChangeText={(val) => setMiddleName(sanitizePersonalName(val))}
                     placeholder="Middle Name"
                     placeholderTextColor="#94A3B8"
                   />
@@ -1175,7 +1362,7 @@ export default function IdIssuanceApplicationScreen() {
                       isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                     ]}
                     value={lastName}
-                    onChangeText={setLastName}
+                    onChangeText={(val) => setLastName(sanitizePersonalName(val))}
                     placeholder="Last Name"
                     placeholderTextColor="#94A3B8"
                   />
@@ -1191,7 +1378,7 @@ export default function IdIssuanceApplicationScreen() {
                       isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                     ]}
                     value={suffix}
-                    onChangeText={setSuffix}
+                    onChangeText={(val) => setSuffix(sanitizePersonalName(val))}
                     placeholder="Jr/III"
                     placeholderTextColor="#94A3B8"
                   />
@@ -1230,7 +1417,7 @@ export default function IdIssuanceApplicationScreen() {
                       isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                     ]}
                     value={civilStatus}
-                    onChangeText={setCivilStatus}
+                    onChangeText={(val) => setCivilStatus(sanitizePersonalName(val))}
                     placeholder="Single / Married"
                     placeholderTextColor="#94A3B8"
                   />
@@ -1335,7 +1522,7 @@ export default function IdIssuanceApplicationScreen() {
                         isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                       ]}
                       value={physicianName}
-                      onChangeText={setPhysicianName}
+                      onChangeText={(val) => setPhysicianName(sanitizePersonalName(val))}
                       placeholder="e.g. Dr. Maria Santos, MD (Caloocan City Medical Center)"
                       placeholderTextColor="#94A3B8"
                     />
@@ -1444,7 +1631,7 @@ export default function IdIssuanceApplicationScreen() {
                           isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                         ]}
                         value={emergencyContactName}
-                        onChangeText={setEmergencyContactName}
+                        onChangeText={(val) => setEmergencyContactName(sanitizePersonalName(val))}
                         placeholder="Full Name (Next of Kin)"
                         placeholderTextColor="#94A3B8"
                       />
@@ -1979,6 +2166,415 @@ export default function IdIssuanceApplicationScreen() {
             </View>
           </>
         )}
+      </>
+    )}
+
+    {/* TAB 2: APPLICATION STATUS */}
+    {activeTab === 'status' && (
+      <View style={styles.statusSectionContainer}>
+        {/* Header Banner */}
+        <View
+          style={[
+            styles.headerBannerCard,
+            isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+          ]}
+        >
+          <View style={styles.bannerTopRow}>
+            <View style={[styles.iconCircle, { backgroundColor: '#EDE9FE' }]}>
+              <IconSymbol name="creditcard.fill" size={24} color="#7C3AED" />
+            </View>
+            <Badge label="STATUS TRACKER" variant="info" />
+          </View>
+          <Text style={[styles.serviceTitle, isDarkMode && { color: '#F8FAFC' }]}>
+            My ID Applications & Status
+          </Text>
+          <Text style={[styles.serviceExplanation, isDarkMode && { color: '#94A3B8' }]}>
+            Track real-time verification progress, document evaluation, approval status, and claim voucher schedules for all your municipal identity card requests.
+          </Text>
+        </View>
+
+        {/* Status Filter Chips */}
+        <View style={styles.filterRow}>
+          {[
+            { id: 'ALL', label: `All (${applications.length})` },
+            {
+              id: 'IN_REVIEW',
+              label: `In Review (${applications.filter((a) => a.status === 'Pending Review' || a.status === 'Under Review').length})`,
+            },
+            {
+              id: 'READY',
+              label: `Ready / Approved (${applications.filter((a) => a.status === 'Approved' || a.status === 'Ready for Release').length})`,
+            },
+            {
+              id: 'CLAIMED',
+              label: `Claimed (${applications.filter((a) => a.status === 'Claimed').length})`,
+            },
+          ].map((tab) => {
+            const isActive = statusFilter === tab.id;
+            return (
+              <TouchableOpacity
+                key={tab.id}
+                style={[
+                  styles.filterPill,
+                  isActive && styles.filterPillActive,
+                  isDarkMode && { backgroundColor: isActive ? '#0284C7' : '#152238', borderColor: '#3A506B' },
+                ]}
+                onPress={() => setStatusFilter(tab.id)}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    isActive && styles.filterPillTextActive,
+                    isDarkMode && !isActive && { color: '#94A3B8' },
+                  ]}
+                >
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Applications List or Empty State */}
+        {isLoadingApplications ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0284C7" />
+            <Text style={[styles.loadingText, isDarkMode && { color: '#94A3B8' }]}>
+              Loading your official ID applications from City Central...
+            </Text>
+          </View>
+        ) : applications.filter((app) => {
+            if (statusFilter === 'ALL') return true;
+            if (statusFilter === 'IN_REVIEW') return app.status === 'Pending Review' || app.status === 'Under Review';
+            if (statusFilter === 'READY') return app.status === 'Approved' || app.status === 'Ready for Release';
+            if (statusFilter === 'CLAIMED') return app.status === 'Claimed';
+            return true;
+          }).length === 0 ? (
+          <View
+            style={[
+              styles.emptyStateCard,
+              isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+            ]}
+          >
+            <View style={[styles.emptyIconCircle, { backgroundColor: '#EDE9FE' }]}>
+              <IconSymbol name="creditcard.fill" size={32} color="#7C3AED" />
+            </View>
+            <Text style={[styles.emptyStateTitle, isDarkMode && { color: '#F8FAFC' }]}>
+              No Applications Found
+            </Text>
+            <Text style={[styles.emptyStateDesc, isDarkMode && { color: '#94A3B8' }]}>
+              {statusFilter === 'ALL'
+                ? "You haven't filed any ID applications yet. Choose an ID card to start your application."
+                : `No ID applications matching the "${statusFilter}" filter were found.`}
+            </Text>
+            <TouchableOpacity
+              style={styles.applyNowBtn}
+              onPress={() => {
+                setSelectedId(null);
+                setActiveTab('apply');
+              }}
+              activeOpacity={0.85}
+            >
+              <IconSymbol name="plus.circle.fill" size={16} color="#FFFFFF" />
+              <Text style={styles.applyNowBtnText}>Apply for an ID Now</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.applicationsListContainer}>
+            {applications
+              .filter((app) => {
+                if (statusFilter === 'ALL') return true;
+                if (statusFilter === 'IN_REVIEW') return app.status === 'Pending Review' || app.status === 'Under Review';
+                if (statusFilter === 'READY') return app.status === 'Approved' || app.status === 'Ready for Release';
+                if (statusFilter === 'CLAIMED') return app.status === 'Claimed';
+                return true;
+              })
+              .map((app) => {
+                const catMeta = getCategoryForApp(app.id_category);
+                const stageIdx = getIdStageIndex(app.status);
+                const badgeInfo = getStatusBadgeInfo(app.status);
+                const isExpanded = expandedAppId === app.id;
+                const isRejected = (app.status || '').toLowerCase().includes('reject');
+
+                return (
+                  <View
+                    key={app.id || app.reference_no}
+                    style={[
+                      styles.appCard,
+                      isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                    ]}
+                  >
+                    {/* Card Top Row */}
+                    <View style={styles.appCardHeader}>
+                      <View style={[styles.appIconCircle, { backgroundColor: catMeta.iconBg }]}>
+                        <IconSymbol name={catMeta.icon} size={22} color={catMeta.iconColor} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.appTitleBadgeRow}>
+                          <Text style={[styles.appCategoryName, isDarkMode && { color: '#F8FAFC' }]}>
+                            {catMeta.name}
+                          </Text>
+                          <View
+                            style={[
+                              styles.statusPillBadge,
+                              { backgroundColor: badgeInfo.bg, borderColor: badgeInfo.border },
+                            ]}
+                          >
+                            <Text style={[styles.statusPillText, { color: badgeInfo.color }]}>
+                              {badgeInfo.label}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={[styles.appFullTitle, isDarkMode && { color: '#94A3B8' }]} numberOfLines={1}>
+                          {app.id_title || catMeta.fullTitle}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Reference Number & Type Chips */}
+                    <View style={[styles.refRowBar, isDarkMode && { backgroundColor: '#152238' }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.refRowLabel}>REFERENCE CODE</Text>
+                        <Text style={[styles.refRowCode, isDarkMode && { color: '#38BDF8' }]}>
+                          {app.reference_no}
+                        </Text>
+                      </View>
+                      <View style={styles.typeBadgeContainer}>
+                        <Text style={[styles.typeBadgeText, isDarkMode && { color: '#94A3B8' }]}>
+                          {app.application_type || 'New Application'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Meta Details Grid */}
+                    <View style={styles.appMetaGrid}>
+                      <View style={styles.appMetaItem}>
+                        <Text style={styles.appMetaLabel}>Applicant</Text>
+                        <Text style={[styles.appMetaValue, isDarkMode && { color: '#F8FAFC' }]} numberOfLines={1}>
+                          {app.first_name} {app.middle_name ? `${app.middle_name.charAt(0)}. ` : ''}{app.last_name} {app.suffix || ''}
+                        </Text>
+                      </View>
+                      <View style={styles.appMetaItem}>
+                        <Text style={styles.appMetaLabel}>Date Filed</Text>
+                        <Text style={[styles.appMetaValue, isDarkMode && { color: '#F8FAFC' }]}>
+                          {app.created_at ? new Date(app.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}
+                        </Text>
+                      </View>
+                      <View style={[styles.appMetaItem, { width: '100%' }]}>
+                        <Text style={styles.appMetaLabel}>Claim Office</Text>
+                        <Text style={[styles.appMetaValue, isDarkMode && { color: '#CBD5E1' }]} numberOfLines={2}>
+                          {app.claim_office || catMeta.claimOffice}
+                        </Text>
+                      </View>
+                      <View style={styles.appMetaItem}>
+                        <Text style={styles.appMetaLabel}>Turnaround</Text>
+                        <Text style={[styles.appMetaValue, { color: '#0284C7', fontWeight: '700' }, isDarkMode && { color: '#38BDF8' }]}>
+                          {app.estimated_turnaround || catMeta.estimatedTurnaround}
+                        </Text>
+                      </View>
+                      <View style={styles.appMetaItem}>
+                        <Text style={styles.appMetaLabel}>Barangay</Text>
+                        <Text style={[styles.appMetaValue, isDarkMode && { color: '#F8FAFC' }]}>
+                          {app.barangay ? `Brgy ${app.barangay}` : 'City Wide'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Rejection Notice if applicable */}
+                    {isRejected && (
+                      <View style={styles.rejectionCard}>
+                        <View style={styles.rejectionHeader}>
+                          <IconSymbol name="exclamationmark.octagon.fill" size={16} color="#DC2626" />
+                          <Text style={styles.rejectionTitle}>Application Disapproved</Text>
+                        </View>
+                        <Text style={styles.rejectionBody}>
+                          {app.rejection_reason || app.review_notes || 'Credentials did not satisfy official requirements. Please verify documents and re-apply.'}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* 5-Stage Stepper Tracker */}
+                    {!isRejected && (
+                      <View style={[styles.stepperContainer, isDarkMode && { backgroundColor: '#152238' }]}>
+                        <Text style={[styles.stepperHeaderTitle, isDarkMode && { color: '#93C5FD' }]}>
+                          Application Progression
+                        </Text>
+                        <View style={styles.stepperTrackRow}>
+                          {CITIZEN_ID_STAGES.map((stg, sIdx) => {
+                            const isDone = sIdx <= stageIdx;
+                            const isCurrent = sIdx === stageIdx;
+                            return (
+                              <View key={stg.id} style={styles.stepItemCol}>
+                                <View style={styles.stepDotLineContainer}>
+                                  {sIdx > 0 && (
+                                    <View
+                                      style={[
+                                        styles.stepLineBefore,
+                                        sIdx <= stageIdx && styles.stepLineActive,
+                                      ]}
+                                    />
+                                  )}
+                                  <View
+                                    style={[
+                                      styles.stepDot,
+                                      isDone && styles.stepDotDone,
+                                      isCurrent && styles.stepDotCurrent,
+                                    ]}
+                                  >
+                                    {isDone && !isCurrent ? (
+                                      <IconSymbol name="checkmark" size={10} color="#FFFFFF" />
+                                    ) : isCurrent ? (
+                                      <View style={styles.stepDotCurrentInner} />
+                                    ) : (
+                                      <Text style={styles.stepDotNumber}>{sIdx + 1}</Text>
+                                    )}
+                                  </View>
+                                  {sIdx < CITIZEN_ID_STAGES.length - 1 && (
+                                    <View
+                                      style={[
+                                        styles.stepLineAfter,
+                                        sIdx < stageIdx && styles.stepLineActive,
+                                      ]}
+                                    />
+                                  )}
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.stepItemLabel,
+                                    isCurrent && styles.stepItemLabelCurrent,
+                                    isDarkMode && { color: isCurrent ? '#38BDF8' : isDone ? '#94A3B8' : '#475569' },
+                                  ]}
+                                  numberOfLines={2}
+                                >
+                                  {stg.label}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Expandable Claim Voucher / Details Drawer */}
+                    {isExpanded && (
+                      <View
+                        style={[
+                          styles.voucherDrawer,
+                          isDarkMode && { backgroundColor: '#131D31', borderColor: '#3A506B' },
+                        ]}
+                      >
+                        {/* Digital Claim Voucher Barcode Mockup */}
+                        <View style={styles.voucherCodeCard}>
+                          <Text style={styles.voucherCardHeader}>DIGITAL CLAIM VOUCHER</Text>
+                          <Text style={styles.voucherBigRef}>{app.reference_no}</Text>
+                          <View style={styles.mockBarcodeContainer}>
+                            <View style={styles.mockBarcodeLines} />
+                            <Text style={styles.mockBarcodeText}>||| | |||| | ||| |||| | || | |||| ||</Text>
+                          </View>
+                          <Text style={styles.voucherHintText}>
+                            Present this reference code or digital voucher at the release desk.
+                          </Text>
+                        </View>
+
+                        {/* Claim Requirements Checklist */}
+                        <View style={styles.voucherReqsSection}>
+                          <Text style={[styles.voucherReqsTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                            Documents to Bring Upon Claiming:
+                          </Text>
+                          <View style={styles.reqCheckItem}>
+                            <IconSymbol name="checkmark.circle.fill" size={14} color="#10B981" />
+                            <Text style={[styles.reqCheckText, isDarkMode && { color: '#CBD5E1' }]}>
+                              1 Valid Government-issued Photo ID (original)
+                            </Text>
+                          </View>
+                          <View style={styles.reqCheckItem}>
+                            <IconSymbol name="checkmark.circle.fill" size={14} color="#10B981" />
+                            <Text style={[styles.reqCheckText, isDarkMode && { color: '#CBD5E1' }]}>
+                              Original supporting proof ({catMeta.supportDocName || 'Proof of Residency'})
+                            </Text>
+                          </View>
+                          {catMeta.id === 'pwd_id' && (
+                            <View style={styles.reqCheckItem}>
+                              <IconSymbol name="checkmark.circle.fill" size={14} color="#10B981" />
+                              <Text style={[styles.reqCheckText, isDarkMode && { color: '#CBD5E1' }]}>
+                                Original signed Clinical Medical Certificate
+                              </Text>
+                            </View>
+                          )}
+                          {catMeta.id === 'solo_parent_id' && (
+                            <View style={styles.reqCheckItem}>
+                              <IconSymbol name="checkmark.circle.fill" size={14} color="#10B981" />
+                              <Text style={[styles.reqCheckText, isDarkMode && { color: '#CBD5E1' }]}>
+                                PSA Birth Certificate(s) of dependent child/children
+                              </Text>
+                            </View>
+                          )}
+                          {catMeta.id === 'senior_citizen_id' && (
+                            <View style={styles.reqCheckItem}>
+                              <IconSymbol name="checkmark.circle.fill" size={14} color="#10B981" />
+                              <Text style={[styles.reqCheckText, isDarkMode && { color: '#CBD5E1' }]}>
+                                PSA Birth Certificate or proof of age 60+
+                              </Text>
+                            </View>
+                          )}
+                          <View style={styles.reqCheckItem}>
+                            <IconSymbol name="checkmark.circle.fill" size={14} color="#10B981" />
+                            <Text style={[styles.reqCheckText, isDarkMode && { color: '#CBD5E1' }]}>
+                              This digital claim voucher or printed receipt
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Release Desk Notice */}
+                        <View style={[styles.releaseDeskBox, isDarkMode && { backgroundColor: '#1A2942' }]}>
+                          <IconSymbol name="building.2.fill" size={16} color="#0284C7" />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.releaseDeskTitle, isDarkMode && { color: '#93C5FD' }]}>
+                              Designated Pick-up Desk:
+                            </Text>
+                            <Text style={[styles.releaseDeskText, isDarkMode && { color: '#E2E8F0' }]}>
+                              {app.claim_office || catMeta.claimOffice}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {app.review_notes && (
+                          <View style={styles.reviewNotesBox}>
+                            <Text style={styles.reviewNotesLabel}>Bureau Officer Notes:</Text>
+                            <Text style={styles.reviewNotesText}>{app.review_notes}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Toggle Accordion Button */}
+                    <TouchableOpacity
+                      style={[
+                        styles.drawerToggleBtn,
+                        isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
+                      ]}
+                      onPress={() => setExpandedAppId(isExpanded ? null : app.id)}
+                      activeOpacity={0.8}
+                    >
+                      <IconSymbol
+                        name={isExpanded ? 'chevron.up' : 'chevron.down'}
+                        size={14}
+                        color={isDarkMode ? '#38BDF8' : '#0284C7'}
+                      />
+                      <Text style={[styles.drawerToggleBtnText, isDarkMode && { color: '#38BDF8' }]}>
+                        {isExpanded ? 'Hide Claim Voucher & Details' : 'View Claim Voucher & Details'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+          </View>
+        )}
+      </View>
+    )}
+  </>
+)}
       </ScrollView>
     </SafeAreaView>
   );
@@ -2761,5 +3357,568 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+
+  /* VIEW STATUS BTN IN SUCCESS SCREEN */
+  viewStatusBtn: {
+    backgroundColor: '#0284C7',
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  viewStatusBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  /* SEGMENTED TOGGLE SWITCH */
+  tabSegmentContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  tabSegmentContainerDark: {
+    backgroundColor: '#152238',
+    borderColor: '#3A506B',
+  },
+  tabSegmentButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    gap: 6,
+  },
+  tabSegmentButtonActive: {
+    backgroundColor: '#0284C7',
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabSegmentText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  tabSegmentTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
+  /* FEATURED STATUS TRACKER CARD */
+  featuredTrackerCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  featuredTrackerCardDark: {
+    backgroundColor: '#1C2541',
+    borderColor: '#3A506B',
+  },
+  featuredTrackerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  trackerIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featuredTrackerTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 4,
+  },
+  featuredTrackerDesc: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: '#64748B',
+    marginBottom: 14,
+  },
+  featuredTrackerAction: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#F0F9FF',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+  },
+  featuredTrackerActionText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0284C7',
+  },
+
+  /* APPLICATION STATUS SECTION */
+  statusSectionContainer: {
+    width: '100%',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+    flexWrap: 'wrap',
+  },
+  filterPill: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterPillActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
+  },
+  filterPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  filterPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+
+  /* EMPTY & LOADING STATES */
+  loadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+  emptyStateCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyStateTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  emptyStateDesc: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+  applyNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#0284C7',
+    paddingVertical: 11,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  applyNowBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+
+  /* APPLICATION CARDS LIST */
+  applicationsListContainer: {
+    gap: 14,
+  },
+  appCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  appCardHeader: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  appIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appTitleBadgeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  appCategoryName: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  statusPillBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  appFullTitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    fontWeight: '500',
+  },
+
+  /* REF ROW BAR */
+  refRowBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 12,
+  },
+  refRowLabel: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#94A3B8',
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  refRowCode: {
+    fontSize: 13,
+    fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#0284C7',
+  },
+  typeBadgeContainer: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  typeBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+
+  /* META GRID */
+  appMetaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
+  },
+  appMetaItem: {
+    width: '47%',
+  },
+  appMetaLabel: {
+    fontSize: 10.5,
+    color: '#94A3B8',
+    fontWeight: '600',
+    marginBottom: 1,
+  },
+  appMetaValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+
+  /* REJECTION CARD */
+  rejectionCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    marginBottom: 12,
+  },
+  rejectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  rejectionTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  rejectionBody: {
+    fontSize: 11.5,
+    lineHeight: 16,
+    color: '#991B1B',
+  },
+
+  /* STEPPER TRACKER */
+  stepperContainer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  stepperHeaderTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.3,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+  },
+  stepperTrackRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  stepItemCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  stepDotLineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  stepLineBefore: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#CBD5E1',
+  },
+  stepLineAfter: {
+    flex: 1,
+    height: 2,
+    backgroundColor: '#CBD5E1',
+  },
+  stepLineActive: {
+    backgroundColor: '#10B981',
+  },
+  stepDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepDotDone: {
+    backgroundColor: '#10B981',
+  },
+  stepDotCurrent: {
+    backgroundColor: '#0284C7',
+  },
+  stepDotCurrentInner: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FFFFFF',
+  },
+  stepDotNumber: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#64748B',
+  },
+  stepItemLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  stepItemLabelCurrent: {
+    color: '#0284C7',
+    fontWeight: '800',
+  },
+
+  /* EXPANDABLE VOUCHER DRAWER */
+  voucherDrawer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  voucherCodeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  voucherCardHeader: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    color: '#64748B',
+    marginBottom: 4,
+  },
+  voucherBigRef: {
+    fontSize: 16,
+    fontWeight: '900',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#0F172A',
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  mockBarcodeContainer: {
+    alignItems: 'center',
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  mockBarcodeLines: {
+    height: 2,
+    width: 140,
+    backgroundColor: '#0F172A',
+    marginBottom: 2,
+  },
+  mockBarcodeText: {
+    fontSize: 14,
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#0F172A',
+    fontWeight: '900',
+  },
+  voucherHintText: {
+    fontSize: 10,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  voucherReqsSection: {
+    gap: 6,
+    marginBottom: 12,
+  },
+  voucherReqsTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  reqCheckItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  reqCheckText: {
+    fontSize: 11,
+    color: '#334155',
+    fontWeight: '500',
+    flex: 1,
+  },
+  releaseDeskBox: {
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#F0F9FF',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'flex-start',
+  },
+  releaseDeskTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0284C7',
+    marginBottom: 1,
+  },
+  releaseDeskText: {
+    fontSize: 11,
+    color: '#0369A1',
+    fontWeight: '600',
+  },
+  reviewNotesBox: {
+    marginTop: 8,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  reviewNotesLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  reviewNotesText: {
+    fontSize: 11,
+    color: '#92400E',
+  },
+  drawerToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+  },
+  drawerToggleBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284C7',
   },
 });

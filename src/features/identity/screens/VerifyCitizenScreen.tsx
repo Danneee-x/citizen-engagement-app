@@ -145,6 +145,23 @@ const MONTH_NAMES = [
 const WEEK_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const YEAR_OPTIONS = Array.from({ length: 97 }, (_, i) => 2026 - i);
 
+/**
+ * Sanitizes personal names (first, middle, last name, suffix, etc.)
+ * Strictly blocks all numbers (0-9) and special characters (!@#$%^&* etc.).
+ * Allows only alphabetic letters (including Filipino / Spanish characters like ñ, Ñ),
+ * spaces, and standard name punctuation (period, hyphen, apostrophe).
+ */
+export const sanitizePersonalName = (val: string): string => {
+  return val.replace(/[^a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.\-']/g, '');
+};
+
+/**
+ * Sanitizes Place of Birth to block numbers and special symbols, allowing letters, spaces, commas, hyphens, and periods.
+ */
+export const sanitizePlaceOfBirth = (val: string): string => {
+  return val.replace(/[^a-zA-ZñÑáéíóúÁÉÍÓÚ\s\.\-',]/g, '');
+};
+
 export function VerifyCitizenScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -194,10 +211,10 @@ export function VerifyCitizenScreen() {
         // 1. Pre-fill from active auth session if present
         if (currentUser && currentUser.user) {
           const u = currentUser.user;
-          if (u.first_name) setFirstName(u.first_name);
-          if (u.middle_name) setMiddleName(u.middle_name);
-          if (u.last_name) setLastName(u.last_name);
-          if (u.suffix) setSuffix(u.suffix);
+          if (u.first_name) setFirstName(sanitizePersonalName(u.first_name));
+          if (u.middle_name) setMiddleName(sanitizePersonalName(u.middle_name));
+          if (u.last_name) setLastName(sanitizePersonalName(u.last_name));
+          if (u.suffix) setSuffix(sanitizePersonalName(u.suffix));
           setIsPrefilled(true);
         }
 
@@ -211,10 +228,10 @@ export function VerifyCitizenScreen() {
 
           if (res.status === 'success' && res.data) {
             const p = res.data;
-            if (p.first_name) setFirstName(p.first_name);
-            if (p.middle_name) setMiddleName(p.middle_name);
-            if (p.last_name) setLastName(p.last_name);
-            if (p.suffix) setSuffix(p.suffix);
+            if (p.first_name) setFirstName(sanitizePersonalName(p.first_name));
+            if (p.middle_name) setMiddleName(sanitizePersonalName(p.middle_name));
+            if (p.last_name) setLastName(sanitizePersonalName(p.last_name));
+            if (p.suffix) setSuffix(sanitizePersonalName(p.suffix));
             if (p.birthDate) setBirthDate(p.birthDate);
             if (p.civilStatus && CIVIL_STATUS_OPTIONS.includes(p.civilStatus)) {
               setCivilStatus(p.civilStatus);
@@ -464,6 +481,15 @@ export function VerifyCitizenScreen() {
     }
     if (!lastName.trim()) {
       setErrorMessage('Last name is required.');
+      return;
+    }
+    const invalidPattern = /[0-9!@#$%^&*()_+=\[\]{};:"\\|<>/?`~]/;
+    if (invalidPattern.test(firstName) || invalidPattern.test(lastName) || invalidPattern.test(middleName) || invalidPattern.test(suffix)) {
+      setErrorMessage('Personal information (names) cannot contain numbers or special characters.');
+      return;
+    }
+    if (invalidPattern.test(placeOfBirth)) {
+      setErrorMessage('Place of birth cannot contain numbers or special characters.');
       return;
     }
     if (!birthDate.trim()) {
@@ -843,7 +869,7 @@ export function VerifyCitizenScreen() {
                   placeholder="e.g. Juan"
                   placeholderTextColor="#94A3B8"
                   value={firstName}
-                  onChangeText={setFirstName}
+                  onChangeText={(val) => setFirstName(sanitizePersonalName(val))}
                 />
               </View>
 
@@ -858,7 +884,7 @@ export function VerifyCitizenScreen() {
                     placeholder="e.g. Santos"
                     placeholderTextColor="#94A3B8"
                     value={middleName}
-                    onChangeText={setMiddleName}
+                    onChangeText={(val) => setMiddleName(sanitizePersonalName(val))}
                   />
                 </View>
                 <View style={[styles.rowItem, styles.inputGroup]}>
@@ -870,7 +896,7 @@ export function VerifyCitizenScreen() {
                     placeholder="Jr., III (opt.)"
                     placeholderTextColor="#94A3B8"
                     value={suffix}
-                    onChangeText={setSuffix}
+                    onChangeText={(val) => setSuffix(sanitizePersonalName(val))}
                   />
                 </View>
               </View>
@@ -885,7 +911,7 @@ export function VerifyCitizenScreen() {
                   placeholder="e.g. Dela Cruz"
                   placeholderTextColor="#94A3B8"
                   value={lastName}
-                  onChangeText={setLastName}
+                  onChangeText={(val) => setLastName(sanitizePersonalName(val))}
                 />
               </View>
 
@@ -930,7 +956,7 @@ export function VerifyCitizenScreen() {
                   placeholder="e.g. Caloocan City / Manila"
                   placeholderTextColor="#94A3B8"
                   value={placeOfBirth}
-                  onChangeText={setPlaceOfBirth}
+                  onChangeText={(val) => setPlaceOfBirth(sanitizePlaceOfBirth(val))}
                 />
               </View>
 
