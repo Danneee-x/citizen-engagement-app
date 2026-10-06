@@ -235,6 +235,10 @@ export class ProfileService {
 
       const endpoints = [
         `${API_BASE_URL}/verification-status.php?${queryParams.toString()}`,
+        `${API_BASE_URL}/verification-status?${queryParams.toString()}`,
+        `http://localhost/citizen-information-and-engagement-final-try/api/citizen/verification-status.php?${queryParams.toString()}`,
+        `http://localhost/civentral-citizen-information-and-engagement/api/citizen/verification-status.php?${queryParams.toString()}`,
+        `http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/verification-status.php?${queryParams.toString()}`,
         `http://192.168.1.5/citizen-backend/api/citizen/verification-status.php?${queryParams.toString()}`,
         `http://localhost/citizen-backend/api/citizen/verification-status.php?${queryParams.toString()}`,
       ];
@@ -252,6 +256,20 @@ export class ProfileService {
             }
           }
         } catch {}
+      }
+
+      // Fallback to local mapping table
+      const localUser = email
+        ? LocalCitizenTable.findByEmail(email)
+        : (citizenUserId ? LocalCitizenTable.findById(citizenUserId) : null);
+
+      if (localUser) {
+        return {
+          status: 'success',
+          is_verified: Boolean(localUser.registry_completed),
+          verification_status: localUser.registry_completed ? 'Approved' : 'Pending',
+          data: localUser,
+        };
       }
 
       return { status: 'success', data: null, verification_status: 'Not_Submitted', is_verified: false, message: 'Unable to reach verification status service' };

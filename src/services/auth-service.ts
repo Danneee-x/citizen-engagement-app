@@ -50,6 +50,22 @@ export class AuthService {
     return this.isGuest || (!this.currentUserEmail && !this.currentUserPhone && !this.currentUserId);
   }
 
+    private static restoreFromStorage() {
+    if (this.currentUserEmail || this.currentUserId || this.isGuest) return;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = window.localStorage.getItem('civentral_citizen_session');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed.email) this.currentUserEmail = parsed.email;
+          if (parsed.phone) this.currentUserPhone = parsed.phone;
+          if (parsed.citizen_user_id) this.currentUserId = parsed.citizen_user_id;
+          if (parsed.user) this.currentUserData = parsed.user;
+        }
+      }
+    } catch (e) {}
+  }
+
   static setCurrentUser(data: { email?: string; phone?: string; citizen_user_id?: number; user?: any }) {
     this.isGuest = false;
     if (data.email) this.currentUserEmail = data.email;
@@ -60,7 +76,20 @@ export class AuthService {
       if (data.user.email) this.currentUserEmail = data.user.email;
       if (data.user.mobile_number || data.user.phone) this.currentUserPhone = data.user.mobile_number || data.user.phone;
       if (data.user.citizen_user_id) this.currentUserId = data.user.citizen_user_id;
+    }
 
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('civentral_citizen_session', JSON.stringify({
+          email: this.currentUserEmail,
+          phone: this.currentUserPhone,
+          citizen_user_id: this.currentUserId,
+          user: this.currentUserData,
+        }));
+      }
+    } catch (e) {}
+
+    if (data.user) {
       // Sync into local mapping table
       LocalCitizenTable.insert({
         citizen_user_id: data.user.citizen_user_id || this.currentUserId || undefined,

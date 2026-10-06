@@ -27,7 +27,6 @@ export interface SurveyItem {
   closingDate: string;
   status: 'Open' | 'Completed' | 'Closing Soon';
   isPublicResults: boolean;
-  surveyCode?: string;
   questions: SurveyQuestion[];
 }
 

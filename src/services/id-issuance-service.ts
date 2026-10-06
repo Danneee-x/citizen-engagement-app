@@ -21,6 +21,12 @@ export interface IdApplicationRecord {
   barangay: string;
   district?: string;
   resident_since?: string;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  emergency_contact_relation?: string | null;
+  signature_url?: string | null;
+  e_signature_name?: string | null;
+  signature_mode?: 'upload' | 'esignature' | string | null;
   issuing_bureau: string;
   claim_office: string;
   estimated_turnaround: string;
@@ -58,6 +64,12 @@ export interface SubmitIdApplicationPayload {
   barangay: string;
   district?: string;
   resident_since?: string;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
+  emergency_contact_relation?: string | null;
+  signature_url?: string | null;
+  e_signature_name?: string | null;
+  signature_mode?: 'upload' | 'esignature' | string | null;
   issuing_bureau: string;
   primary_doc_name?: string;
   claim_office: string;

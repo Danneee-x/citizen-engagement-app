@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  Modal,
   Platform,
   RefreshControl,
   SafeAreaView,
@@ -14,12 +16,14 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import Svg, { Path } from 'react-native-svg';
 import { IconSymbol, IconSymbolName } from '@/src/components/ui/icon-symbol';
 import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
 import { AuthService, API_BASE_URL } from '@/src/services/auth-service';
 import { ProfileService } from '@/src/services/profile-service';
-import { IdIssuanceService, IdApplicationRecord } from '@/src/services/id-issuance-service';
+import { LocalCitizenTable } from '@/src/services/local-citizen-table';
+import { IdIssuanceService, IdApplicationRecord, SubmitIdApplicationPayload } from '@/src/services/id-issuance-service';
 
 export interface IdCategoryOption {
   id: string;
@@ -205,7 +209,54 @@ export const RESIDENCY_YEARS = [
   'Since Birth',
 ] as const;
 
+export const MONTHS_LIST = [
+  { value: '01', label: 'January', short: 'Jan' },
+  { value: '02', label: 'February', short: 'Feb' },
+  { value: '03', label: 'March', short: 'Mar' },
+  { value: '04', label: 'April', short: 'Apr' },
+  { value: '05', label: 'May', short: 'May' },
+  { value: '06', label: 'June', short: 'Jun' },
+  { value: '07', label: 'July', short: 'Jul' },
+  { value: '08', label: 'August', short: 'Aug' },
+  { value: '09', label: 'September', short: 'Sep' },
+  { value: '10', label: 'October', short: 'Oct' },
+  { value: '11', label: 'November', short: 'Nov' },
+  { value: '12', label: 'December', short: 'Dec' },
+] as const;
+
+export const getDaysInMonth = (year: number, month: number): number => {
+  return new Date(year, month, 0).getDate();
+};
+
+export const calculateAgeFromDate = (dateStr: string): number | null => {
+  if (!dateStr) return null;
+  const parts = dateStr.split('-');
+  if (parts.length < 3) return null;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null;
+  const birth = new Date(y, m - 1, d);
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const mDiff = today.getMonth() - birth.getMonth();
+  if (mDiff < 0 || (mDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : 0;
+};
+
 export const BLOOD_TYPES = ['O+', 'A+', 'B+', 'AB+', 'O-', 'A-', 'B-', 'AB-', 'Unknown'] as const;
+
+export const EMERGENCY_RELATIONSHIPS = [
+  'Spouse',
+  'Parent',
+  'Child',
+  'Sibling',
+  'Relative',
+  'Guardian',
+  'Next of Kin',
+] as const;
 
 export const CITIZEN_ID_STAGES = [
   { id: 'submitted', label: 'Submitted', desc: 'Application filed online' },
@@ -300,6 +351,203 @@ export default function IdIssuanceApplicationScreen() {
   const [lastName, setLastName] = useState('');
   const [suffix, setSuffix] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [birthYear, setBirthYear] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
+  const [activeDobPicker, setActiveDobPicker] = useState<'month' | 'day' | 'year' | null>(null);
+  const [yearDecadeFilter, setYearDecadeFilter] = useState<string>('All');
+
+  // Interactive In-App Signature Drawing Pad State
+  const [isSigModalVisible, setIsSigModalVisible] = useState(false);
+  const canvasRef = React.useRef<any>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+  const [drawnSignatureUri, setDrawnSignatureUri] = useState<string | null>(null);
+  const [nativeStrokes, setNativeStrokes] = useState<{ x: number; y: number }[][]>([]);
+  const [currentNativeStroke, setCurrentNativeStroke] = useState<{ x: number; y: number }[]>([]);
+
+  const generateSvgDataUrl = (strokes: { x: number; y: number }[][]): string => {
+    let pathD = '';
+    for (const stroke of strokes) {
+      if (stroke.length === 0) continue;
+      pathD += `M ${stroke[0].x} ${stroke[0].y} `;
+      for (let i = 1; i < stroke.length; i++) {
+        pathD += `L ${stroke[i].x} ${stroke[i].y} `;
+      }
+    }
+    const svgStr = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="180" viewBox="0 0 480 180"><rect width="100%" height="100%" fill="#ffffff"/><path d="${pathD}" fill="none" stroke="#0F172A" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    return `data:image/svg+xml;utf8,${encodeURIComponent(svgStr)}`;
+  };
+
+  const getCanvasCoords = (e: any, canvas: any) => {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches && e.touches[0] ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches && e.touches[0] ? e.touches[0].clientY : e.clientY;
+    const scaleX = canvas.width / (rect.width || 1);
+    const scaleY = canvas.height / (rect.height || 1);
+    return {
+      x: (clientX - rect.left) * scaleX,
+      y: (clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handleMouseDown = (e: any) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const { x, y } = getCanvasCoords(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.strokeStyle = '#0F172A';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    setIsDrawing(true);
+  };
+
+  const handleMouseMove = (e: any) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const { x, y } = getCanvasCoords(e, canvas);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    setHasDrawn(true);
+  };
+
+  const handleMouseUp = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    const canvas = canvasRef.current;
+    if (canvas) {
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        setDrawnSignatureUri(dataUrl);
+      } catch (err) {
+        console.warn('Canvas export error:', err);
+      }
+    }
+  };
+
+  const handleTouchStart = (e: any) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const { x, y } = getCanvasCoords(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.strokeStyle = '#0F172A';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    setIsDrawing(true);
+  };
+
+  const handleTouchMove = (e: any) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const { x, y } = getCanvasCoords(e, canvas);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    setHasDrawn(true);
+  };
+
+  const handleTouchEnd = () => {
+    handleMouseUp();
+  };
+
+  const handleClearSignature = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    setHasDrawn(false);
+    setDrawnSignatureUri(null);
+    setNativeStrokes([]);
+    setCurrentNativeStroke([]);
+  };
+
+  const handleOpenSigModal = () => {
+    setIsSigModalVisible(true);
+  };
+
+  const handleCloseSigModal = () => {
+    setIsSigModalVisible(false);
+  };
+
+  const handleSaveSignatureAndClose = () => {
+    if (Platform.OS === 'web') {
+      const canvas = canvasRef.current;
+      if (canvas) {
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          setDrawnSignatureUri(dataUrl);
+          setHasDrawn(true);
+        } catch (err) {
+          console.warn('Canvas export error:', err);
+        }
+      }
+    } else {
+      if (nativeStrokes.length > 0 || currentNativeStroke.length > 0) {
+        const updated = currentNativeStroke.length > 0 ? [...nativeStrokes, currentNativeStroke] : nativeStrokes;
+        const svgUri = generateSvgDataUrl(updated);
+        setDrawnSignatureUri(svgUri);
+        setHasDrawn(true);
+      }
+    }
+    setIsSigModalVisible(false);
+  };
+
+  const syncBirthDateParts = (dateStr: string) => {
+    if (!dateStr) return;
+    const match = dateStr.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (match) {
+      const y = match[1];
+      const m = match[2].padStart(2, '0');
+      const d = match[3].padStart(2, '0');
+      setBirthYear(y);
+      setBirthMonth(m);
+      setBirthDay(d);
+      setBirthDate(`${y}-${m}-${d}`);
+    } else {
+      setBirthDate(dateStr);
+    }
+  };
+
+  const updateBirthDate = (y: string, m: string, d: string) => {
+    setBirthYear(y);
+    setBirthMonth(m);
+    setBirthDay(d);
+    if (y && m && d) {
+      setBirthDate(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`);
+    } else {
+      setBirthDate('');
+    }
+  };
+
+  const currentDaysInMonth = React.useMemo(() => {
+    const y = parseInt(birthYear, 10) || 2026;
+    const m = parseInt(birthMonth, 10) || 1;
+    return getDaysInMonth(y, m);
+  }, [birthYear, birthMonth]);
+
+  const birthYearsList = React.useMemo(() => {
+    const list: string[] = [];
+    for (let yr = 2026; yr >= 1920; yr--) {
+      list.push(String(yr));
+    }
+    return list;
+  }, []);
   const [gender, setGender] = useState('Male');
   const [civilStatus, setCivilStatus] = useState('Single');
 
@@ -313,8 +561,6 @@ export default function IdIssuanceApplicationScreen() {
   const [dependentCount, setDependentCount] = useState('1');
   const [childrenDetails, setChildrenDetails] = useState('');
   // Senior Citizen specific
-  const [emergencyContactName, setEmergencyContactName] = useState('');
-  const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
   const [bloodType, setBloodType] = useState<string>('O+');
   const [isPensioner, setIsPensioner] = useState('Yes (SSS / GSIS)');
   // Barangay ID specific
@@ -334,6 +580,17 @@ export default function IdIssuanceApplicationScreen() {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
+  // Universal Emergency Contact State
+  const [emergencyContactName, setEmergencyContactName] = useState('');
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState('');
+  const [emergencyContactRelation, setEmergencyContactRelation] = useState<string>('Next of Kin');
+
+  // Universal Applicant Signature or E-Signature State
+  const [signatureMode, setSignatureMode] = useState<'upload' | 'esignature'>('esignature');
+  const [signatureFile, setSignatureFile] = useState<{ name: string; size: string } | null>(null);
+  const [eSignatureName, setESignatureName] = useState('');
+  const [eSignatureAgreed, setESignatureAgreed] = useState(true);
+
   // Requirements Upload State
   const [idDocFile, setIdDocFile] = useState<{ name: string; size: string } | null>(null);
   const [supportDocFile, setSupportDocFile] = useState<{ name: string; size: string } | null>(null);
@@ -349,6 +606,14 @@ export default function IdIssuanceApplicationScreen() {
     applicationStatus: string;
     submissionDate: string;
     applicationType: string;
+    emergencyContact?: {
+      name: string;
+      phone: string;
+      relation: string;
+    };
+    signatureMode?: 'upload' | 'esignature';
+    signatureSigner?: string;
+    signaturePreview?: string | null;
     processingUpdates: string;
     releaseClaimInfo: {
       claimCenter: string;
@@ -397,37 +662,149 @@ export default function IdIssuanceApplicationScreen() {
     }
   }, [params.id]);
 
-  // Pre-load Citizen details
+  // Pre-load Citizen details from Citizen Registry & active session
   useEffect(() => {
     async function loadCitizen() {
       try {
         const session = AuthService.getCurrentUser();
-        if (session.user) {
-          const u = session.user;
+        let userId = session?.citizen_user_id || session?.user?.citizen_user_id || ((params as any).citizenUserId ? Number((params as any).citizenUserId) : undefined);
+        let userEmail = session?.email || session?.user?.email || (typeof (params as any).email === 'string' ? (params as any).email : undefined);
+        let userPhone = session?.phone || session?.user?.mobile_number;
+
+        // Rehydrate from web localStorage if session has not yet loaded
+        if (!userEmail && typeof window !== 'undefined' && window.localStorage) {
+          try {
+            const raw = window.localStorage.getItem('civentral_citizen_session');
+            if (raw) {
+              const p = JSON.parse(raw);
+              if (p.email || p.currentUserEmail) userEmail = p.email || p.currentUserEmail;
+              if (p.citizen_user_id || p.currentUserId) userId = p.citizen_user_id || p.currentUserId;
+            }
+            if (!userEmail) {
+              const lastEmail = window.localStorage.getItem('civentral_last_registered_email');
+              if (lastEmail) userEmail = lastEmail;
+            }
+          } catch (e) {}
+        }
+
+        // If session was not found, check local table for recent citizen registration
+        if (!userEmail && !userId) {
+          const allLocal = LocalCitizenTable.getAll();
+          if (allLocal.length > 0) {
+            const last = allLocal[allLocal.length - 1];
+            userId = last.citizen_user_id;
+            userEmail = last.email;
+            userPhone = last.mobile_number;
+          }
+        }
+
+        // Step 1: Initial populate from active session / local user record
+        const localUser = userEmail 
+          ? LocalCitizenTable.findByEmail(userEmail)
+          : (userId ? LocalCitizenTable.findById(Number(userId)) : null);
+        const u = session?.user || localUser;
+
+        if (u) {
           if (u.first_name) setFirstName(sanitizePersonalName(u.first_name));
           if (u.middle_name) setMiddleName(sanitizePersonalName(u.middle_name));
           if (u.last_name) setLastName(sanitizePersonalName(u.last_name));
           if (u.suffix) setSuffix(sanitizePersonalName(u.suffix));
           if (u.email) setEmail(u.email);
-          if (u.mobile_number) setPhone(u.mobile_number);
+          if (u.mobile_number || (u as any).phone) setPhone(u.mobile_number || (u as any).phone);
+          if ((u as any).birth_date) syncBirthDateParts((u as any).birth_date);
+          if ((u as any).sex) setGender((u as any).sex.toLowerCase() === 'female' ? 'Female' : 'Male');
+          if ((u as any).civil_status) setCivilStatus(sanitizePersonalName((u as any).civil_status));
+          if ((u as any).street_address) setStreetAddress((u as any).street_address);
+          if ((u as any).barangay) {
+            setBarangay((u as any).barangay);
+            setDistrict((u as any).district || detectDistrictFromBarangay((u as any).barangay));
+          }
+          if ((u as any).district) setDistrict((u as any).district);
+          if ((u as any).occupation) setOccupation((u as any).occupation);
+          if (u.first_name || u.last_name) {
+            const full = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+            if (full) setESignatureName((prev) => prev || sanitizePersonalName(full));
+          }
+          if ((u as any).emergency_contact_name) setEmergencyContactName(sanitizePersonalName((u as any).emergency_contact_name));
+          if ((u as any).emergency_contact_phone) setEmergencyContactPhone((u as any).emergency_contact_phone);
+          if ((u as any).emergency_contact_relation) setEmergencyContactRelation((u as any).emergency_contact_relation);
         }
 
-        const res = await ProfileService.getProfile(session.email || undefined, session.citizen_user_id || undefined);
-        if (res.status === 'success' && res.data) {
+        // Step 2: Fetch official registered demographic data from Citizen Registry (citizen_verifications)
+        const verifRes = await ProfileService.getVerificationStatus(
+          userId ? Number(userId) : undefined,
+          userEmail || undefined
+        );
+
+        if (verifRes && verifRes.status === 'success' && verifRes.data) {
+          const vd = verifRes.data;
+          if (vd.first_name) setFirstName(sanitizePersonalName(vd.first_name));
+          if (vd.middle_name) setMiddleName(sanitizePersonalName(vd.middle_name));
+          if (vd.last_name) setLastName(sanitizePersonalName(vd.last_name));
+          if (vd.suffix) setSuffix(sanitizePersonalName(vd.suffix));
+          if (vd.birth_date) syncBirthDateParts(vd.birth_date);
+          if (vd.sex) setGender(vd.sex.toLowerCase() === 'female' ? 'Female' : 'Male');
+          if (vd.civil_status) setCivilStatus(sanitizePersonalName(vd.civil_status));
+          if (vd.street_address) setStreetAddress(vd.street_address);
+          if (vd.barangay) {
+            setBarangay(vd.barangay);
+            setDistrict(vd.district || detectDistrictFromBarangay(vd.barangay));
+          }
+          if (vd.district) setDistrict(vd.district);
+          if (vd.occupation) setOccupation(vd.occupation);
+          if (vd.valid_id_number) setPhilsysNumber(vd.valid_id_number);
+          if (vd.first_name || vd.last_name) {
+            const full = `${vd.first_name || ''} ${vd.last_name || ''}`.trim();
+            if (full) setESignatureName(sanitizePersonalName(full));
+          }
+          if ((vd as any).emergency_contact_name) setEmergencyContactName(sanitizePersonalName((vd as any).emergency_contact_name));
+          if ((vd as any).emergency_contact_phone) setEmergencyContactPhone((vd as any).emergency_contact_phone);
+          if ((vd as any).emergency_contact_relation) setEmergencyContactRelation((vd as any).emergency_contact_relation);
+          if (vd.years_resident) {
+            const yrNum = parseInt(String(vd.years_resident), 10);
+            if (!isNaN(yrNum)) {
+              if (yrNum < 1) setResidencyLength(RESIDENCY_YEARS[0]);
+              else if (yrNum <= 2) setResidencyLength(RESIDENCY_YEARS[1]);
+              else if (yrNum <= 5) setResidencyLength(RESIDENCY_YEARS[2]);
+              else if (yrNum <= 10) setResidencyLength(RESIDENCY_YEARS[3]);
+              else setResidencyLength(RESIDENCY_YEARS[4]);
+            }
+          }
+
+          // Sync to client-side local table for offline persistence
+          if (userId) {
+            LocalCitizenTable.update(Number(userId), {
+              first_name: vd.first_name,
+              middle_name: vd.middle_name,
+              last_name: vd.last_name,
+              suffix: vd.suffix,
+              birth_date: vd.birth_date,
+              civil_status: vd.civil_status,
+              street_address: vd.street_address,
+              barangay: vd.barangay,
+              district: vd.district,
+              occupation: vd.occupation,
+              years_resident: String(vd.years_resident || ''),
+            });
+          }
+        }
+
+        // Step 3: Fetch supplementary profile details if any fields remain unpopulated
+        const res = await ProfileService.getProfile(userEmail || undefined, userId ? Number(userId) : undefined);
+        if (res && res.status === 'success' && res.data) {
           const d = res.data;
-          if (d.birthDate) setBirthDate(d.birthDate);
-          if (d.civilStatus) setCivilStatus(sanitizePersonalName(d.civilStatus));
+          if (d.email) setEmail((prev) => prev || d.email || '');
+          if (d.phone) setPhone((prev) => prev || d.phone || '');
+          if (d.birthDate) syncBirthDateParts(d.birthDate);
+          if (d.civilStatus) setCivilStatus((prev) => prev || sanitizePersonalName(d.civilStatus || 'Single'));
           if (d.barangay) {
-            setBarangay(d.barangay);
-            setDistrict(detectDistrictFromBarangay(d.barangay));
+            setBarangay((prev) => prev || d.barangay || '');
+            setDistrict((prev) => prev || (d as any).district || detectDistrictFromBarangay(d.barangay || ''));
           }
-          if ((d as any).district) {
-            setDistrict((d as any).district);
-          }
-          if (d.address) setStreetAddress(d.address);
+          if (d.address) setStreetAddress((prev) => prev || d.address || '');
         }
       } catch (err) {
-        console.warn('Citizen data fetch error:', err);
+        console.warn('Citizen Registry data fetch error:', err);
       }
     }
     loadCitizen();
@@ -440,7 +817,7 @@ export default function IdIssuanceApplicationScreen() {
     });
   }, []);
 
-  const handlePickDocument = async (type: 'id' | 'support' | 'photo') => {
+  const handlePickDocument = async (type: 'id' | 'support' | 'photo' | 'signature') => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
@@ -463,6 +840,7 @@ export default function IdIssuanceApplicationScreen() {
         if (type === 'id') setIdDocFile(doc);
         if (type === 'support') setSupportDocFile(doc);
         if (type === 'photo') setPhotoFile(doc);
+        if (type === 'signature') setSignatureFile(doc);
       }
     } catch (err) {
       console.warn('Picker error:', err);
@@ -485,9 +863,47 @@ export default function IdIssuanceApplicationScreen() {
       Alert.alert('Required Field', 'Please provide your current Caloocan street address and barangay.');
       return;
     }
+    if (!birthDate.trim()) {
+      Alert.alert('Required Field', 'Please select your Date of Birth.');
+      return;
+    }
+    if (activeCategory.id === 'senior_citizen_id') {
+      const calculatedAge = calculateAgeFromDate(birthDate);
+      if (calculatedAge !== null && calculatedAge < 60) {
+        Alert.alert('Age Requirement', `Senior Citizen ID applicants must be at least 60 years of age. Current age is ${calculatedAge}.`);
+        return;
+      }
+    }
     if (!phone.trim()) {
       Alert.alert('Required Field', 'Please provide a valid mobile contact number.');
       return;
+    }
+    if (!emergencyContactName.trim()) {
+      Alert.alert('Required Field', 'Please provide an Emergency Contact Person full name.');
+      return;
+    }
+    if (!emergencyContactPhone.trim()) {
+      Alert.alert('Required Field', 'Please provide an Emergency Contact mobile phone number.');
+      return;
+    }
+    if (signatureMode === 'upload' && !signatureFile) {
+      Alert.alert('Missing Signature', 'Please upload a photo or scan of your handwritten signature.');
+      return;
+    }
+    if (signatureMode === 'esignature') {
+      if (!hasDrawn && !drawnSignatureUri) {
+        Alert.alert('Signature Required', 'Please draw your signature on the white signature pad before submitting.');
+        return;
+      }
+      const activeSigner = (eSignatureName.trim() || `${firstName} ${lastName}`.trim());
+      if (!activeSigner) {
+        Alert.alert('Missing Name', 'Please verify your printed legal name for your signature.');
+        return;
+      }
+      if (!eSignatureAgreed) {
+        Alert.alert('Certification Required', 'Please confirm the electronic signature declaration to proceed.');
+        return;
+      }
     }
     if (!idDocFile) {
       Alert.alert('Missing Requirement', `Please upload your ${activeCategory.primaryDocName}.`);
@@ -534,7 +950,11 @@ export default function IdIssuanceApplicationScreen() {
     const session = AuthService.getCurrentUser();
     const currentUserId = session.citizen_user_id || session.user?.citizen_user_id || null;
 
-    const payload = {
+    const effectiveSigner = signatureMode === 'esignature'
+      ? (eSignatureName.trim() || `${firstName} ${lastName}`.trim())
+      : null;
+
+    const payload: SubmitIdApplicationPayload = {
       reference_no: ref,
       id_category: activeCategory.id,
       id_title: activeCategory.fullTitle,
@@ -552,6 +972,12 @@ export default function IdIssuanceApplicationScreen() {
       barangay: barangay.trim(),
       district: district || detectDistrictFromBarangay(barangay),
       resident_since: residencyLength || '2015',
+      emergency_contact_name: emergencyContactName.trim(),
+      emergency_contact_phone: emergencyContactPhone.trim(),
+      emergency_contact_relation: emergencyContactRelation.trim() || 'Next of Kin',
+      signature_mode: signatureMode,
+      signature_url: signatureMode === 'esignature' ? drawnSignatureUri : (signatureFile?.name || null),
+      e_signature_name: effectiveSigner,
       issuing_bureau: activeCategory.issuingBureau,
       primary_doc_name: idDocFile?.name || activeCategory.primaryDocName,
       claim_office: activeCategory.claimOffice,
@@ -576,6 +1002,14 @@ export default function IdIssuanceApplicationScreen() {
       applicationStatus: 'Submitted (Pending Document Review)',
       submissionDate: dateStr,
       applicationType: appType,
+      emergencyContact: {
+        name: emergencyContactName.trim(),
+        phone: emergencyContactPhone.trim(),
+        relation: emergencyContactRelation.trim() || 'Next of Kin',
+      },
+      signatureMode,
+      signatureSigner: signatureMode === 'esignature' ? effectiveSigner! : (signatureFile?.name || 'Attached Signature File'),
+      signaturePreview: signatureMode === 'esignature' ? drawnSignatureUri : null,
       processingUpdates: `Your ${activeCategory.name} application has been successfully transmitted to the ${activeCategory.issuingBureau}. Verification officers will evaluate submitted credentials prior to physical/digital card production.`,
       releaseClaimInfo: {
         claimCenter: activeCategory.claimOffice,
@@ -676,6 +1110,62 @@ export default function IdIssuanceApplicationScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Emergency Contact & Signature Confirmation */}
+            {submittedData.emergencyContact && (
+              <View
+                style={[
+                  styles.refCard,
+                  isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                ]}
+              >
+                <View style={styles.refTopRow}>
+                  <Text style={styles.refCardLabel}>Emergency Contact & Signature Verification</Text>
+                  <Badge label="AUTHENTICATED" variant="success" />
+                </View>
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Emergency Contact:</Text>
+                  <Text style={[styles.metaVal, isDarkMode && { color: '#F8FAFC' }]}>
+                    {submittedData.emergencyContact.name} ({submittedData.emergencyContact.relation})
+                  </Text>
+                </View>
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Emergency Mobile:</Text>
+                  <Text style={[styles.metaVal, isDarkMode && { color: '#F8FAFC' }]}>
+                    {submittedData.emergencyContact.phone}
+                  </Text>
+                </View>
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Signature Method:</Text>
+                  <Text style={[styles.metaVal, { color: '#10B981', fontWeight: '700' }]}>
+                    {submittedData.signatureMode === 'esignature' ? 'Drawn E-Signature (R.A. 8792)' : 'Physical Signature File'}
+                  </Text>
+                </View>
+
+                {submittedData.signaturePreview && (
+                  <View style={styles.postSubmitSigPreviewBox}>
+                    <Text style={styles.postSubmitSigLabel}>Captured ID Signature:</Text>
+                    <View style={styles.postSubmitSigImgContainer}>
+                      <Image
+                        source={{ uri: submittedData.signaturePreview }}
+                        style={styles.postSubmitSigImg}
+                        resizeMode="contain"
+                      />
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Signer Legal Name:</Text>
+                  <Text style={[styles.metaVal, isDarkMode && { color: '#38BDF8' }]}>
+                    {submittedData.signatureSigner}
+                  </Text>
+                </View>
+              </View>
+            )}
 
             {/* Processing Updates Card */}
             <View
@@ -936,40 +1426,7 @@ export default function IdIssuanceApplicationScreen() {
                       </Text>
                     </View>
 
-                    {/* Featured Live Status Tracker Card */}
-                    <View
-                      style={[
-                        styles.featuredTrackerCard,
-                        isDarkMode && styles.featuredTrackerCardDark,
-                      ]}
-                    >
-                      <View style={styles.featuredTrackerTop}>
-                        <View style={[styles.trackerIconCircle, { backgroundColor: '#EDE9FE' }]}>
-                          <IconSymbol name="list.bullet.rectangle.fill" size={20} color="#7C3AED" />
-                        </View>
-                        <Badge
-                          label={applications.length > 0 ? `${applications.length} FILED` : 'LIVE TRACKER'}
-                          variant={applications.length > 0 ? 'success' : 'info'}
-                        />
-                      </View>
-                      <Text style={[styles.featuredTrackerTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                        My ID Applications & Status
-                      </Text>
-                      <Text style={[styles.featuredTrackerDesc, isDarkMode && { color: '#94A3B8' }]}>
-                        Track real-time progress, document reviews & claim voucher schedules on your submitted ID applications.
-                      </Text>
-                      <TouchableOpacity
-                        style={styles.featuredTrackerAction}
-                        onPress={() => setActiveTab('status')}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.featuredTrackerActionText}>
-                          Open Application Status &gt;
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-            {/* List of 5 ID Cards to Choose from */}
+{/* List of 5 ID Cards to Choose from */}
             <View style={styles.selectionCardsContainer}>
               {ID_CATEGORIES.map((item) => (
                 <TouchableOpacity
@@ -1076,26 +1533,7 @@ export default function IdIssuanceApplicationScreen() {
           /* VIEW 2: DEDICATED APPLICATION FORM FOR THE CHOSEN ID                      */
           /* ========================================================================= */
           <>
-            {/* Top Navigation: Switch to a different ID */}
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => setSelectedId(null)}
-              activeOpacity={0.7}
-            >
-              <IconSymbol
-                name="chevron.left"
-                size={16}
-                color={isDarkMode ? '#38BDF8' : '#2563EB'}
-              />
-              <Text
-                style={[
-                  styles.backText,
-                  isDarkMode && { color: '#38BDF8' },
-                ]}
-              >
-                Choose a Different ID
-              </Text>
-            </TouchableOpacity>
+
 
             {/* Hero Banner for the Chosen ID */}
             <View
@@ -1385,42 +1823,405 @@ export default function IdIssuanceApplicationScreen() {
                 </View>
               </View>
 
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
+              {/* Universal Date of Birth (3-Dropdown Selector) */}
+              <View style={styles.inputGroup}>
+                <View style={styles.dobLabelRow}>
                   <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
-                    Date of Birth (YYYY-MM-DD) *
+                    Date of Birth *
                   </Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
-                    ]}
-                    value={birthDate}
-                    onChangeText={setBirthDate}
-                    placeholder="1998-05-15"
-                    placeholderTextColor="#94A3B8"
-                  />
-                  {activeCategory.id === 'senior_citizen_id' && (
-                    <Text style={styles.helperTipText}>
-                      Notice: OSCA requires applicant to be at least 60 years of age.
+                  {birthDate ? (
+                    <View
+                      style={[
+                        styles.ageBadge,
+                        activeCategory.id === 'senior_citizen_id' && (calculateAgeFromDate(birthDate) ?? 0) < 60
+                          ? styles.ageBadgeWarning
+                          : styles.ageBadgeNormal,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.ageBadgeText,
+                          activeCategory.id === 'senior_citizen_id' && (calculateAgeFromDate(birthDate) ?? 0) < 60
+                            ? styles.ageBadgeTextWarning
+                            : styles.ageBadgeTextNormal,
+                        ]}
+                      >
+                        {calculateAgeFromDate(birthDate) !== null
+                          ? `Age: ${calculateAgeFromDate(birthDate)} yrs${(calculateAgeFromDate(birthDate) ?? 0) >= 60 ? ' • Senior' : ''}`
+                          : birthDate}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.dobPlaceholderHint, isDarkMode && { color: '#64748B' }]}>
+                      Select Month, Day & Year
                     </Text>
                   )}
                 </View>
 
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
-                    Civil Status
-                  </Text>
-                  <TextInput
+                {/* 3 Dropdown Buttons in a row: Month, Day, Year */}
+                <View style={styles.dobDropdownRow}>
+                  {/* Month Trigger */}
+                  <TouchableOpacity
                     style={[
-                      styles.textInput,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
+                      styles.dobDropdownBtn,
+                      { flex: 1.4 },
+                      activeDobPicker === 'month' && styles.dobDropdownBtnActive,
+                      isDarkMode && { backgroundColor: '#152238', borderColor: activeDobPicker === 'month' ? '#0284C7' : '#3A506B' },
                     ]}
-                    value={civilStatus}
-                    onChangeText={(val) => setCivilStatus(sanitizePersonalName(val))}
-                    placeholder="Single / Married"
-                    placeholderTextColor="#94A3B8"
-                  />
+                    onPress={() => setActiveDobPicker(activeDobPicker === 'month' ? null : 'month')}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dobDropdownContent}>
+                      <Text style={[styles.dobDropdownSublabel, isDarkMode && { color: '#64748B' }]}>Month</Text>
+                      <Text
+                        style={[
+                          styles.dobDropdownValue,
+                          !birthMonth && styles.dobDropdownValuePlaceholder,
+                          isDarkMode && { color: birthMonth ? '#F8FAFC' : '#64748B' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {birthMonth
+                          ? MONTHS_LIST.find((m) => m.value === birthMonth)?.label || birthMonth
+                          : 'Select Month'}
+                      </Text>
+                    </View>
+                    <IconSymbol
+                      name={activeDobPicker === 'month' ? 'chevron.up' : 'chevron.down'}
+                      size={16}
+                      color={isDarkMode ? '#94A3B8' : '#64748B'}
+                    />
+                  </TouchableOpacity>
+
+                  {/* Day Trigger */}
+                  <TouchableOpacity
+                    style={[
+                      styles.dobDropdownBtn,
+                      { flex: 0.9 },
+                      activeDobPicker === 'day' && styles.dobDropdownBtnActive,
+                      isDarkMode && { backgroundColor: '#152238', borderColor: activeDobPicker === 'day' ? '#0284C7' : '#3A506B' },
+                    ]}
+                    onPress={() => setActiveDobPicker(activeDobPicker === 'day' ? null : 'day')}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dobDropdownContent}>
+                      <Text style={[styles.dobDropdownSublabel, isDarkMode && { color: '#64748B' }]}>Day</Text>
+                      <Text
+                        style={[
+                          styles.dobDropdownValue,
+                          !birthDay && styles.dobDropdownValuePlaceholder,
+                          isDarkMode && { color: birthDay ? '#F8FAFC' : '#64748B' },
+                        ]}
+                      >
+                        {birthDay ? parseInt(birthDay, 10) : 'Day'}
+                      </Text>
+                    </View>
+                    <IconSymbol
+                      name={activeDobPicker === 'day' ? 'chevron.up' : 'chevron.down'}
+                      size={16}
+                      color={isDarkMode ? '#94A3B8' : '#64748B'}
+                    />
+                  </TouchableOpacity>
+
+                  {/* Year Trigger */}
+                  <TouchableOpacity
+                    style={[
+                      styles.dobDropdownBtn,
+                      { flex: 1.1 },
+                      activeDobPicker === 'year' && styles.dobDropdownBtnActive,
+                      isDarkMode && { backgroundColor: '#152238', borderColor: activeDobPicker === 'year' ? '#0284C7' : '#3A506B' },
+                    ]}
+                    onPress={() => setActiveDobPicker(activeDobPicker === 'year' ? null : 'year')}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.dobDropdownContent}>
+                      <Text style={[styles.dobDropdownSublabel, isDarkMode && { color: '#64748B' }]}>Year</Text>
+                      <Text
+                        style={[
+                          styles.dobDropdownValue,
+                          !birthYear && styles.dobDropdownValuePlaceholder,
+                          isDarkMode && { color: birthYear ? '#F8FAFC' : '#64748B' },
+                        ]}
+                      >
+                        {birthYear || 'Year'}
+                      </Text>
+                    </View>
+                    <IconSymbol
+                      name={activeDobPicker === 'year' ? 'chevron.up' : 'chevron.down'}
+                      size={16}
+                      color={isDarkMode ? '#94A3B8' : '#64748B'}
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Dropdown Options Expandable Drawer */}
+                {activeDobPicker === 'month' && (
+                  <View
+                    style={[
+                      styles.dobPickerDrawer,
+                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
+                    ]}
+                  >
+                    <View style={styles.dobDrawerHeader}>
+                      <Text style={[styles.dobDrawerTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        Select Birth Month
+                      </Text>
+                      <TouchableOpacity onPress={() => setActiveDobPicker(null)}>
+                        <IconSymbol name="xmark" size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.monthGrid}>
+                      {MONTHS_LIST.map((m) => {
+                        const isSelected = birthMonth === m.value;
+                        return (
+                          <TouchableOpacity
+                            key={m.value}
+                            style={[
+                              styles.monthGridCell,
+                              isSelected && styles.dobCellSelected,
+                              isDarkMode && {
+                                backgroundColor: isSelected ? '#0284C7' : '#1C2541',
+                                borderColor: isSelected ? '#38BDF8' : '#2B3958',
+                              },
+                            ]}
+                            onPress={() => {
+                              const newM = m.value;
+                              const curY = birthYear || '2000';
+                              const maxD = getDaysInMonth(parseInt(curY, 10), parseInt(newM, 10));
+                              const validD = birthDay ? (parseInt(birthDay, 10) > maxD ? String(maxD).padStart(2, '0') : birthDay) : '01';
+                              updateBirthDate(curY, newM, validD);
+                              setActiveDobPicker(!birthDay ? 'day' : null);
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <Text
+                              style={[
+                                styles.monthGridText,
+                                isSelected && styles.dobCellTextSelected,
+                                isDarkMode && { color: isSelected ? '#FFFFFF' : '#CBD5E1' },
+                              ]}
+                            >
+                              {m.short}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.monthGridSubText,
+                                isSelected && { color: '#E0F2FE' },
+                                isDarkMode && !isSelected && { color: '#64748B' },
+                              ]}
+                            >
+                              {m.value}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {activeDobPicker === 'day' && (
+                  <View
+                    style={[
+                      styles.dobPickerDrawer,
+                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
+                    ]}
+                  >
+                    <View style={styles.dobDrawerHeader}>
+                      <Text style={[styles.dobDrawerTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        Select Birth Day ({birthMonth ? MONTHS_LIST.find((m) => m.value === birthMonth)?.label : 'Current Month'})
+                      </Text>
+                      <TouchableOpacity onPress={() => setActiveDobPicker(null)}>
+                        <IconSymbol name="xmark" size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.dayGrid}>
+                      {Array.from({ length: currentDaysInMonth }, (_, i) => String(i + 1).padStart(2, '0')).map((dStr) => {
+                        const isSelected = birthDay === dStr;
+                        return (
+                          <TouchableOpacity
+                            key={dStr}
+                            style={[
+                              styles.dayGridCell,
+                              isSelected && styles.dobCellSelected,
+                              isDarkMode && {
+                                backgroundColor: isSelected ? '#0284C7' : '#1C2541',
+                                borderColor: isSelected ? '#38BDF8' : '#2B3958',
+                              },
+                            ]}
+                            onPress={() => {
+                              const curY = birthYear || '2000';
+                              const curM = birthMonth || '01';
+                              updateBirthDate(curY, curM, dStr);
+                              setActiveDobPicker(!birthYear ? 'year' : null);
+                            }}
+                            activeOpacity={0.75}
+                          >
+                            <Text
+                              style={[
+                                styles.dayGridText,
+                                isSelected && styles.dobCellTextSelected,
+                                isDarkMode && { color: isSelected ? '#FFFFFF' : '#CBD5E1' },
+                              ]}
+                            >
+                              {parseInt(dStr, 10)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {activeDobPicker === 'year' && (
+                  <View
+                    style={[
+                      styles.dobPickerDrawer,
+                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
+                    ]}
+                  >
+                    <View style={styles.dobDrawerHeader}>
+                      <Text style={[styles.dobDrawerTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        Select Birth Year
+                      </Text>
+                      <TouchableOpacity onPress={() => setActiveDobPicker(null)}>
+                        <IconSymbol name="xmark" size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Quick Decade Filter Tabs */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.decadeTabsRow}>
+                      {['All', '2000s', '1990s', '1980s', '1970s', '1960s & older'].map((dec) => {
+                        const isSelDec = yearDecadeFilter === dec;
+                        return (
+                          <TouchableOpacity
+                            key={dec}
+                            style={[
+                              styles.decadeTab,
+                              isSelDec && styles.decadeTabActive,
+                              isDarkMode && {
+                                backgroundColor: isSelDec ? '#0284C7' : '#1C2541',
+                                borderColor: isSelDec ? '#38BDF8' : '#2B3958',
+                              },
+                            ]}
+                            onPress={() => setYearDecadeFilter(dec)}
+                          >
+                            <Text
+                              style={[
+                                styles.decadeTabText,
+                                isSelDec && styles.decadeTabTextActive,
+                                isDarkMode && { color: isSelDec ? '#FFFFFF' : '#94A3B8' },
+                              ]}
+                            >
+                              {dec}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+
+                    {/* Scrollable Year Grid */}
+                    <ScrollView style={styles.yearScrollArea} nestedScrollEnabled={true}>
+                      <View style={styles.yearGrid}>
+                        {birthYearsList
+                          .filter((yr) => {
+                            const yNum = parseInt(yr, 10);
+                            if (yearDecadeFilter === '2000s') return yNum >= 2000;
+                            if (yearDecadeFilter === '1990s') return yNum >= 1990 && yNum < 2000;
+                            if (yearDecadeFilter === '1980s') return yNum >= 1980 && yNum < 1990;
+                            if (yearDecadeFilter === '1970s') return yNum >= 1970 && yNum < 1980;
+                            if (yearDecadeFilter === '1960s & older') return yNum < 1970;
+                            return true;
+                          })
+                          .map((yr) => {
+                            const isSelected = birthYear === yr;
+                            const isSenior = parseInt(yr, 10) <= 1966;
+                            return (
+                              <TouchableOpacity
+                                key={yr}
+                                style={[
+                                  styles.yearGridCell,
+                                  isSelected && styles.dobCellSelected,
+                                  isDarkMode && {
+                                    backgroundColor: isSelected ? '#0284C7' : '#1C2541',
+                                    borderColor: isSelected ? '#38BDF8' : '#2B3958',
+                                  },
+                                ]}
+                                onPress={() => {
+                                  const curM = birthMonth || '01';
+                                  const curD = birthDay || '01';
+                                  const maxD = getDaysInMonth(parseInt(yr, 10), parseInt(curM, 10));
+                                  const validD = parseInt(curD, 10) > maxD ? String(maxD).padStart(2, '0') : curD;
+                                  updateBirthDate(yr, curM, validD);
+                                  setActiveDobPicker(null);
+                                }}
+                                activeOpacity={0.75}
+                              >
+                                <Text
+                                  style={[
+                                    styles.yearGridText,
+                                    isSelected && styles.dobCellTextSelected,
+                                    isDarkMode && { color: isSelected ? '#FFFFFF' : '#CBD5E1' },
+                                  ]}
+                                >
+                                  {yr}
+                                </Text>
+                                {isSenior && activeCategory.id === 'senior_citizen_id' && (
+                                  <Text style={styles.yearSeniorTag}>60+</Text>
+                                )}
+                              </TouchableOpacity>
+                            );
+                          })}
+                      </View>
+                    </ScrollView>
+                  </View>
+                )}
+
+                {/* Senior Citizen Alert if age < 60 */}
+                {activeCategory.id === 'senior_citizen_id' &&
+                  birthDate &&
+                  (calculateAgeFromDate(birthDate) ?? 0) < 60 && (
+                    <View style={styles.seniorAlertBox}>
+                      <IconSymbol name="exclamationmark.triangle.fill" size={15} color="#D97706" />
+                      <Text style={styles.seniorAlertText}>
+                        Senior Citizen ID notice: Applicant age is {calculateAgeFromDate(birthDate)} years old. OSCA accreditation requires applicants to be at least 60 years of age upon filing.
+                      </Text>
+                    </View>
+                  )}
+              </View>
+
+              {/* Civil Status Selection */}
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
+                  Civil Status *
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {['Single', 'Married', 'Widowed', 'Separated', 'Divorced'].map((cs) => {
+                    const isSel = civilStatus === cs;
+                    return (
+                      <TouchableOpacity
+                        key={cs}
+                        style={[
+                          styles.chipItemSmall,
+                          isSel && styles.chipItemSelected,
+                          isDarkMode && {
+                            backgroundColor: isSel ? '#0284C7' : '#152238',
+                            borderColor: isSel ? '#38BDF8' : '#3A506B',
+                          },
+                        ]}
+                        onPress={() => setCivilStatus(cs)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            isSel && styles.chipTextSelected,
+                            isDarkMode && { color: isSel ? '#FFFFFF' : '#CBD5E1' },
+                          ]}
+                        >
+                          {cs}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </View>
 
@@ -1620,41 +2421,6 @@ export default function IdIssuanceApplicationScreen() {
               {/* Senior Citizen ID Specific Fields */}
               {activeCategory.id === 'senior_citizen_id' && (
                 <View style={styles.dynamicBox}>
-                  <View style={styles.rowInputs}>
-                    <View style={[styles.inputGroup, { flex: 1.2 }]}>
-                      <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
-                        Emergency Contact Person *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.textInput,
-                          isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
-                        ]}
-                        value={emergencyContactName}
-                        onChangeText={(val) => setEmergencyContactName(sanitizePersonalName(val))}
-                        placeholder="Full Name (Next of Kin)"
-                        placeholderTextColor="#94A3B8"
-                      />
-                    </View>
-
-                    <View style={[styles.inputGroup, { flex: 1 }]}>
-                      <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
-                        Emergency Mobile *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.textInput,
-                          isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
-                        ]}
-                        value={emergencyContactPhone}
-                        onChangeText={setEmergencyContactPhone}
-                        placeholder="09XXXXXXXXX"
-                        placeholderTextColor="#94A3B8"
-                        keyboardType="phone-pad"
-                      />
-                    </View>
-                  </View>
-
                   <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
                     Blood Type (Printed on OSCA Emergency Medical Record)
                   </Text>
@@ -1987,10 +2753,294 @@ export default function IdIssuanceApplicationScreen() {
 
               <View style={styles.divider} />
 
-              {/* SECTION 6: REQUIREMENTS UPLOAD */}
+              {/* SECTION 6: EMERGENCY CONTACT INFORMATION */}
               <View style={styles.sectionHeaderRow}>
                 <View style={styles.stepBadge}>
                   <Text style={styles.stepBadgeText}>6</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                    Emergency Contact Information *
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, isDarkMode && { color: '#94A3B8' }]}>
+                    Designated contact in medical situations, urgent verification, or card release notices
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
+                  Emergency Contact Full Name *
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
+                  ]}
+                  value={emergencyContactName}
+                  onChangeText={(val) => setEmergencyContactName(sanitizePersonalName(val))}
+                  placeholder="Full Legal Name (e.g. Maria Santos)"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
+                  Relationship to Applicant *
+                </Text>
+                <View style={styles.chipsContainer}>
+                  {EMERGENCY_RELATIONSHIPS.map((rel) => {
+                    const isSel = emergencyContactRelation === rel;
+                    return (
+                      <TouchableOpacity
+                        key={rel}
+                        style={[
+                          styles.chipItemSmall,
+                          isSel && styles.chipItemSelected,
+                          isDarkMode && {
+                            backgroundColor: isSel ? '#0284C7' : '#152238',
+                            borderColor: isSel ? '#38BDF8' : '#3A506B',
+                          },
+                        ]}
+                        onPress={() => setEmergencyContactRelation(rel)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            isSel && styles.chipTextSelected,
+                            isDarkMode && { color: isSel ? '#FFFFFF' : '#CBD5E1' },
+                          ]}
+                        >
+                          {rel}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
+                  Emergency Mobile Phone *
+                </Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
+                  ]}
+                  value={emergencyContactPhone}
+                  onChangeText={setEmergencyContactPhone}
+                  placeholder="09XXXXXXXXX"
+                  placeholderTextColor="#94A3B8"
+                  keyboardType="phone-pad"
+                />
+              </View>
+
+              <View style={styles.divider} />
+
+              {/* SECTION 7: APPLICANT SIGNATURE OR E-SIGNATURE */}
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>7</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.sectionTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                    Applicant Signature or E-Signature *
+                  </Text>
+                  <Text style={[styles.sectionSubtitle, isDarkMode && { color: '#94A3B8' }]}>
+                    Required for official municipal registry records and ID card fabrication
+                  </Text>
+                </View>
+              </View>
+
+              {/* Signature Mode Selector Switch */}
+              <View style={[styles.signatureModeContainer, isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.signatureModeBtn,
+                    signatureMode === 'esignature' && styles.signatureModeBtnActive,
+                    isDarkMode && signatureMode === 'esignature' && { backgroundColor: '#0284C7' },
+                  ]}
+                  onPress={() => setSignatureMode('esignature')}
+                >
+                  <IconSymbol
+                    name="pencil"
+                    size={16}
+                    color={signatureMode === 'esignature' ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.signatureModeBtnText,
+                      signatureMode === 'esignature' && styles.signatureModeBtnTextActive,
+                      isDarkMode && signatureMode !== 'esignature' && { color: '#94A3B8' },
+                    ]}
+                  >
+                    Digital E-Signature
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.signatureModeBtn,
+                    signatureMode === 'upload' && styles.signatureModeBtnActive,
+                    isDarkMode && signatureMode === 'upload' && { backgroundColor: '#0284C7' },
+                  ]}
+                  onPress={() => setSignatureMode('upload')}
+                >
+                  <IconSymbol
+                    name="camera.fill"
+                    size={16}
+                    color={signatureMode === 'upload' ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B'}
+                  />
+                  <Text
+                    style={[
+                      styles.signatureModeBtnText,
+                      signatureMode === 'upload' && styles.signatureModeBtnTextActive,
+                      isDarkMode && signatureMode !== 'upload' && { color: '#94A3B8' },
+                    ]}
+                  >
+                    Upload Physical Signature
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Mode 1: Digital E-Signature (Modal Drawing Experience) */}
+              {signatureMode === 'esignature' ? (
+                <View style={[styles.signatureCard, isDarkMode && { backgroundColor: '#152238', borderColor: '#2B3958' }]}>
+                  {drawnSignatureUri ? (
+                    /* Captured Signature Preview Card */
+                    <View style={[styles.sigPreviewCard, isDarkMode && { backgroundColor: '#1C2541', borderColor: '#10B981' }]}>
+                      <View style={styles.sigPreviewTop}>
+                        <View style={styles.sigPreviewBadge}>
+                          <IconSymbol name="checkmark.circle.fill" size={14} color="#10B981" />
+                          <Text style={styles.sigPreviewBadgeText}>E-SIGNATURE ATTACHED</Text>
+                        </View>
+                        <TouchableOpacity
+                          style={[styles.sigPreviewReSignBtn, isDarkMode && { backgroundColor: '#152238' }]}
+                          onPress={handleOpenSigModal}
+                          activeOpacity={0.75}
+                        >
+                          <IconSymbol name="pencil" size={13} color="#0284C7" />
+                          <Text style={[styles.sigPreviewReSignText, isDarkMode && { color: '#38BDF8' }]}>
+                            Re-draw / Edit
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <View style={styles.sigPreviewImgBox}>
+                        <Image
+                          source={{ uri: drawnSignatureUri }}
+                          style={styles.sigPreviewImg}
+                          resizeMode="contain"
+                        />
+                      </View>
+                    </View>
+                  ) : (
+                    /* Trigger Button to Open Modal */
+                    <TouchableOpacity
+                      style={[styles.sigTriggerCard, isDarkMode && { backgroundColor: '#152238', borderColor: '#0284C7' }]}
+                      onPress={handleOpenSigModal}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[styles.sigTriggerIconCircle, isDarkMode && { backgroundColor: '#1C2541' }]}>
+                        <IconSymbol name="pencil" size={26} color="#0284C7" />
+                      </View>
+                      <Text style={[styles.sigTriggerTitle, isDarkMode && { color: '#38BDF8' }]}>
+                        Draw Your Official E-Signature
+                      </Text>
+                      <Text style={[styles.sigTriggerDesc, isDarkMode && { color: '#94A3B8' }]}>
+                        Tap to open the expanded drawing pad on clean white paper with full room to draw using your finger, stylus, or mouse.
+                      </Text>
+                      <View style={styles.sigTriggerBtn}>
+                        <IconSymbol name="pencil" size={14} color="#FFFFFF" />
+                        <Text style={styles.sigTriggerBtnText}>Open Signature Pad to Draw</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Printed Legal Name Input */}
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
+                      Printed Legal Signer Name *
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.textInput,
+                        isDarkMode && { backgroundColor: '#0E1726', borderColor: '#3A506B', color: '#F8FAFC' },
+                      ]}
+                      value={eSignatureName || `${firstName} ${lastName}`.trim()}
+                      onChangeText={(val) => setESignatureName(sanitizePersonalName(val))}
+                      placeholder="Full Legal Name"
+                      placeholderTextColor="#94A3B8"
+                    />
+                  </View>
+
+                  {/* Legal Attestation Checkbox */}
+                  <TouchableOpacity
+                    style={styles.declarationRow}
+                    onPress={() => setESignatureAgreed(!eSignatureAgreed)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.checkboxBox, eSignatureAgreed && styles.checkboxBoxActive]}>
+                      {eSignatureAgreed && <IconSymbol name="checkmark" size={12} color="#FFFFFF" />}
+                    </View>
+                    <Text style={[styles.declarationText, isDarkMode && { color: '#CBD5E1' }]}>
+                      I hereby certify under penalty of law that the drawn signature above is executed by me, represents my official signature, and is legally binding pursuant to Republic Act No. 8792 (Philippine Electronic Commerce Act).
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                /* Mode 2: Upload Handwritten Physical Signature */
+                <View style={[styles.signatureCard, isDarkMode && { backgroundColor: '#152238', borderColor: '#2B3958' }]}>
+                  <View style={styles.signatureTipsBox}>
+                    <IconSymbol name="info.circle.fill" size={16} color="#0284C7" />
+                    <Text style={[styles.signatureTipsText, isDarkMode && { color: '#BAE6FD' }]}>
+                      Sign on a clean sheet of white paper using black or dark blue ink. Avoid shadows or glares, and make sure the signature is clearly visible.
+                    </Text>
+                  </View>
+
+                  {signatureFile ? (
+                    <View
+                      style={[
+                        styles.docAttachedRow,
+                        isDarkMode && { backgroundColor: '#0E1726', borderColor: '#2B3958' },
+                      ]}
+                    >
+                      <IconSymbol name="pencil" size={18} color="#10B981" />
+                      <Text
+                        style={[styles.docAttachedName, isDarkMode && { color: '#F8FAFC' }]}
+                        numberOfLines={1}
+                      >
+                        {signatureFile.name} ({signatureFile.size})
+                      </Text>
+                      <TouchableOpacity onPress={() => setSignatureFile(null)}>
+                        <IconSymbol name="trash.fill" size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[
+                        styles.uploadTrigger,
+                        isDarkMode && { backgroundColor: '#0E1726', borderColor: '#3A506B' },
+                      ]}
+                      onPress={() => handlePickDocument('signature')}
+                      activeOpacity={0.8}
+                    >
+                      <IconSymbol name="arrow.up.doc.fill" size={18} color="#0284C7" />
+                      <Text style={[styles.uploadTriggerText, isDarkMode && { color: '#38BDF8' }]}>
+                        Upload Signature Photo or Scan (JPG/PNG)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.divider} />
+
+              {/* SECTION 8: REQUIREMENTS UPLOAD */}
+              <View style={styles.sectionHeaderRow}>
+                <View style={styles.stepBadge}>
+                  <Text style={styles.stepBadgeText}>8</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.sectionTitle, isDarkMode && { color: '#F8FAFC' }]}>
@@ -2539,6 +3589,39 @@ export default function IdIssuanceApplicationScreen() {
                           </View>
                         </View>
 
+                        {app.emergency_contact_name && (
+                          <View style={[styles.appEmergencyBox, isDarkMode && { backgroundColor: '#1A2942' }]}>
+                            <Text style={[styles.appEmergencyLabel, isDarkMode && { color: '#93C5FD' }]}>Emergency Contact:</Text>
+                            <Text style={[styles.appEmergencyValue, isDarkMode && { color: '#F8FAFC' }]}>
+                              {app.emergency_contact_name} {app.emergency_contact_relation ? `(${app.emergency_contact_relation})` : ''} • {app.emergency_contact_phone}
+                            </Text>
+                          </View>
+                        )}
+
+                        {(app.signature_url || app.e_signature_name) && (
+                          <View style={[styles.appSignatureBox, isDarkMode && { backgroundColor: '#1A2942' }]}>
+                            <Text style={[styles.appSignatureLabel, isDarkMode && { color: '#6EE7B7' }]}>Official Cardholder Signature:</Text>
+                            {app.signature_url && app.signature_url.startsWith('data:image') ? (
+                              <View style={styles.voucherSigImgWrapper}>
+                                <Image
+                                  source={{ uri: app.signature_url }}
+                                  style={styles.voucherSigImg}
+                                  resizeMode="contain"
+                                />
+                                <Text style={[styles.voucherSigSignerText, isDarkMode && { color: '#94A3B8' }]}>
+                                  {app.e_signature_name || 'Cardholder Signature'} • Digitally Captured
+                                </Text>
+                              </View>
+                            ) : (
+                              <Text style={[styles.appSignatureValue, isDarkMode && { color: '#F8FAFC' }]}>
+                                {app.signature_mode === 'esignature' || app.e_signature_name
+                                  ? `Digital E-Signature: ${app.e_signature_name}`
+                                  : `Physical Signature File: ${app.signature_url || 'Attached'}`}
+                              </Text>
+                            )}
+                          </View>
+                        )}
+
                         {app.review_notes && (
                           <View style={styles.reviewNotesBox}>
                             <Text style={styles.reviewNotesLabel}>Bureau Officer Notes:</Text>
@@ -2576,6 +3659,135 @@ export default function IdIssuanceApplicationScreen() {
   </>
 )}
       </ScrollView>
+
+      {/* EXPANDED FULLSCREEN SIGNATURE DRAWING MODAL */}
+      <Modal
+        visible={isSigModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseSigModal}
+      >
+        <View style={styles.sigModalOverlay}>
+          <View style={[styles.sigModalContainer, isDarkMode && { backgroundColor: '#1E293B' }]}>
+            {/* Modal Header */}
+            <View style={styles.sigModalHeader}>
+              <View style={{ flex: 1, paddingRight: 8 }}>
+                <Text style={[styles.sigModalTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                  Digital E-Signature Pad
+                </Text>
+                <Text style={[styles.sigModalSubtitle, isDarkMode && { color: '#94A3B8' }]}>
+                  Draw your official signature clearly on the white area below using your finger, stylus, or mouse
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.sigModalCloseBtn, isDarkMode && { backgroundColor: '#0F172A' }]}
+                onPress={handleCloseSigModal}
+                activeOpacity={0.7}
+              >
+                <IconSymbol name="xmark" size={16} color={isDarkMode ? '#CBD5E1' : '#64748B'} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Large White Canvas Pad */}
+            <View style={styles.sigModalCanvasWrapper}>
+              {Platform.OS === 'web' ? (
+                <canvas
+                  ref={canvasRef}
+                  width={600}
+                  height={300}
+                  style={{
+                    width: '100%',
+                    height: 280,
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 10,
+                    cursor: 'crosshair',
+                    touchAction: 'none',
+                  }}
+                  onMouseDown={handleMouseDown}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onTouchStart={handleTouchStart}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                />
+              ) : (
+                <View
+                  style={styles.sigModalNativePad}
+                  onStartShouldSetResponder={() => true}
+                  onMoveShouldSetResponder={() => true}
+                  onResponderGrant={(evt) => {
+                    const { locationX, locationY } = evt.nativeEvent;
+                    setCurrentNativeStroke([{ x: locationX, y: locationY }]);
+                    setIsDrawing(true);
+                  }}
+                  onResponderMove={(evt) => {
+                    if (!isDrawing) return;
+                    const { locationX, locationY } = evt.nativeEvent;
+                    setCurrentNativeStroke((prev) => [...prev, { x: locationX, y: locationY }]);
+                    setHasDrawn(true);
+                  }}
+                  onResponderRelease={() => {
+                    setIsDrawing(false);
+                    if (currentNativeStroke.length > 0) {
+                      const updated = [...nativeStrokes, currentNativeStroke];
+                      setNativeStrokes(updated);
+                      setCurrentNativeStroke([]);
+                      const svgUri = generateSvgDataUrl(updated);
+                      setDrawnSignatureUri(svgUri);
+                    }
+                  }}
+                >
+                  <Svg width="100%" height={280}>
+                    {nativeStrokes.map((stroke, sIdx) => {
+                      let d = `M ${stroke[0].x} ${stroke[0].y} `;
+                      for (let i = 1; i < stroke.length; i++) d += `L ${stroke[i].x} ${stroke[i].y} `;
+                      return <Path key={sIdx} d={d} stroke="#0F172A" strokeWidth={3.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+                    })}
+                    {currentNativeStroke.length > 0 && (() => {
+                      let d = `M ${currentNativeStroke[0].x} ${currentNativeStroke[0].y} `;
+                      for (let i = 1; i < currentNativeStroke.length; i++) d += `L ${currentNativeStroke[i].x} ${currentNativeStroke[i].y} `;
+                      return <Path d={d} stroke="#0F172A" strokeWidth={3.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
+                    })()}
+                  </Svg>
+                </View>
+              )}
+
+              {/* Guideline watermark */}
+              <View style={styles.sigPadWatermarkRow} pointerEvents="none">
+                <Text style={styles.sigPadWatermarkX}>✖</Text>
+                <View style={styles.sigPadDottedLine} />
+                <Text style={styles.sigPadWatermarkText}>Sign on line</Text>
+              </View>
+            </View>
+
+            {/* Modal Action Footer */}
+            <View style={styles.sigModalFooter}>
+              <TouchableOpacity
+                style={styles.sigModalClearBtn}
+                onPress={handleClearSignature}
+                activeOpacity={0.75}
+              >
+                <IconSymbol name="arrow.clockwise" size={15} color="#DC2626" />
+                <Text style={styles.sigModalClearBtnText}>Clear Pad</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.sigModalSaveBtn,
+                  !hasDrawn && !drawnSignatureUri && styles.sigModalSaveBtnDisabled,
+                ]}
+                onPress={handleSaveSignatureAndClose}
+                disabled={!hasDrawn && !drawnSignatureUri}
+                activeOpacity={0.85}
+              >
+                <IconSymbol name="checkmark" size={16} color="#FFFFFF" />
+                <Text style={styles.sigModalSaveBtnText}>Save & Apply Signature</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -3920,5 +5132,739 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#0284C7',
+  },
+  signatureModeContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 16,
+    gap: 6,
+  },
+  signatureModeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  signatureModeBtnActive: {
+    backgroundColor: '#0284C7',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  signatureModeBtnText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  signatureModeBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  signatureCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 16,
+  },
+  eSignaturePreviewBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+    borderStyle: 'dashed',
+    padding: 16,
+    marginTop: 10,
+    marginBottom: 14,
+  },
+  eSignatureHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  eSignatureStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  eSignatureStatusText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.5,
+  },
+  eSignatureDate: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  eSignatureScriptArea: {
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  eSignatureScriptText: {
+    fontSize: 26,
+    fontWeight: '600',
+    fontStyle: 'italic',
+    letterSpacing: 1.5,
+    color: '#1D4ED8',
+    fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : 'serif',
+  },
+  eSignatureLine: {
+    width: 200,
+    height: 1.5,
+    backgroundColor: '#60A5FA',
+    marginTop: 6,
+  },
+  eSignatureCertText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  declarationRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 4,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  checkboxBoxActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
+  },
+  declarationText: {
+    flex: 1,
+    fontSize: 11.5,
+    lineHeight: 17,
+    color: '#334155',
+    fontWeight: '500',
+  },
+  signatureTipsBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F0F9FF',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  signatureTipsText: {
+    flex: 1,
+    fontSize: 11.5,
+    color: '#0369A1',
+    lineHeight: 16,
+  },
+  appEmergencyBox: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#0284C7',
+  },
+  appEmergencyLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  appEmergencyValue: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  appSignatureBox: {
+    marginTop: 6,
+    padding: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10B981',
+  },
+  appSignatureLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  appSignatureValue: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  dobLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  dobPlaceholderHint: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  ageBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ageBadgeNormal: {
+    backgroundColor: '#E0F2FE',
+  },
+  ageBadgeWarning: {
+    backgroundColor: '#FEF3C7',
+  },
+  ageBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  ageBadgeTextNormal: {
+    color: '#0369A1',
+  },
+  ageBadgeTextWarning: {
+    color: '#B45309',
+  },
+  dobDropdownRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  dobDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dobDropdownBtnActive: {
+    borderColor: '#0284C7',
+    backgroundColor: '#F0F9FF',
+  },
+  dobDropdownContent: {
+    flex: 1,
+  },
+  dobDropdownSublabel: {
+    fontSize: 9.5,
+    color: '#94A3B8',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  dobDropdownValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  dobDropdownValuePlaceholder: {
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  dobPickerDrawer: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 10,
+  },
+  dobDrawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  dobDrawerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  monthGridCell: {
+    width: '23%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthGridText: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  monthGridSubText: {
+    fontSize: 9,
+    color: '#94A3B8',
+    marginTop: 1,
+  },
+  dayGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+  },
+  dayGridCell: {
+    width: '12.8%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 6,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayGridText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  dobCellSelected: {
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
+  },
+  dobCellTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  decadeTabsRow: {
+    flexDirection: 'row',
+    marginBottom: 8,
+  },
+  decadeTab: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginRight: 6,
+  },
+  decadeTabActive: {
+    backgroundColor: '#0284C7',
+    borderColor: '#0284C7',
+  },
+  decadeTabText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  decadeTabTextActive: {
+    color: '#FFFFFF',
+  },
+  yearScrollArea: {
+    maxHeight: 180,
+  },
+  yearGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  yearGridCell: {
+    width: '23%',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  yearGridText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  yearSeniorTag: {
+    fontSize: 8,
+    color: '#059669',
+    fontWeight: '800',
+    marginTop: 1,
+  },
+  seniorAlertBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 8,
+    padding: 8,
+    marginTop: 6,
+  },
+  seniorAlertText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#B45309',
+    lineHeight: 15,
+  },
+  sigPadTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  sigPadStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  sigPadStatusText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  clearSigBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#FEE2E2',
+    borderRadius: 6,
+  },
+  clearSigBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#EF4444',
+  },
+  whitePadWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    overflow: 'hidden',
+    position: 'relative',
+    height: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  nativeSigPad: {
+    width: '100%',
+    height: 180,
+    backgroundColor: '#FFFFFF',
+  },
+  sigPadWatermarkRow: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    opacity: 0.45,
+  },
+  sigPadWatermarkX: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#94A3B8',
+  },
+  sigPadDottedLine: {
+    flex: 1,
+    height: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#94A3B8',
+    borderStyle: 'dashed',
+  },
+  sigPadWatermarkText: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  sigPadHintText: {
+    fontSize: 10.5,
+    color: '#64748B',
+    lineHeight: 15,
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  postSubmitSigPreviewBox: {
+    marginTop: 10,
+    padding: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  postSubmitSigLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 6,
+  },
+  postSubmitSigImgContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 6,
+    alignItems: 'center',
+  },
+  postSubmitSigImg: {
+    width: '100%',
+    height: 60,
+  },
+  voucherSigImgWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 6,
+    marginTop: 4,
+    alignItems: 'center',
+  },
+  voucherSigImg: {
+    width: 180,
+    height: 48,
+  },
+  voucherSigSignerText: {
+    fontSize: 9.5,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  sigModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  sigModalContainer: {
+    width: '100%',
+    maxWidth: 640,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  sigModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  sigModalTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  sigModalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  sigModalCloseBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+  },
+  sigModalCanvasWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#94A3B8',
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    height: 280,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  sigModalNativePad: {
+    width: '100%',
+    height: 280,
+    backgroundColor: '#FFFFFF',
+  },
+  sigModalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 16,
+  },
+  sigModalClearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  sigModalClearBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  sigModalSaveBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: '#0284C7',
+  },
+  sigModalSaveBtnDisabled: {
+    backgroundColor: '#94A3B8',
+    opacity: 0.6,
+  },
+  sigModalSaveBtnText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  sigTriggerCard: {
+    backgroundColor: '#F0F9FF',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#0284C7',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginVertical: 6,
+  },
+  sigTriggerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sigTriggerTitle: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0369A1',
+    textAlign: 'center',
+  },
+  sigTriggerDesc: {
+    fontSize: 11.5,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  sigTriggerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0284C7',
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  sigTriggerBtnText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  sigPreviewCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 6,
+  },
+  sigPreviewTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sigPreviewBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  sigPreviewBadgeText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  sigPreviewReSignBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 6,
+  },
+  sigPreviewReSignText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#0284C7',
+  },
+  sigPreviewImgBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    height: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  sigPreviewImg: {
+    width: '100%',
+    height: '100%',
   },
 });

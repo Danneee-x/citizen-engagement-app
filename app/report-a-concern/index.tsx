@@ -618,43 +618,7 @@ export default function ReportConcernScreen() {
                   </Text>
                 </View>
 
-                {/* 2. PROMINENT "MY REPORTS & GRIEVANCES" LIVE TRACKER CARD (FROM SCREENSHOT) */}
-                <View
-                  style={[
-                    styles.featuredTrackerCard,
-                    isDarkMode && styles.featuredTrackerCardDark,
-                  ]}
-                >
-                  <View style={styles.featuredTrackerTop}>
-                    <View style={styles.trackerIconCircle}>
-                      <IconSymbol name="questionmark.circle.fill" size={24} color="#0284C7" />
-                    </View>
-                    <View style={styles.liveTrackerBadge}>
-                      <Text style={styles.liveTrackerBadgeText}>LIVE TRACKER</Text>
-                    </View>
-                  </View>
-
-                  <Text style={[styles.featuredTrackerTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                    My Reports & Grievances
-                  </Text>
-                  <Text style={[styles.featuredTrackerDesc, isDarkMode && { color: '#94A3B8' }]}>
-                    Track real-time progress, dispatch updates & provide resolution feedback on your submitted concerns.
-                  </Text>
-
-                  <View style={[styles.trackerDivider, isDarkMode && { backgroundColor: '#2B3958' }]} />
-
-                  <TouchableOpacity
-                    style={styles.featuredTrackerAction}
-                    onPress={() => setActiveTab('my_reports')}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.featuredTrackerActionText}>
-                      Open E-Service ›
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* 3. CONCERN FORM CARD */}
+                {/* CONCERN FORM CARD */}
                 <View
                   style={[
                     styles.formCard,

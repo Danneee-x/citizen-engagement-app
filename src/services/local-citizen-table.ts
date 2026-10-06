@@ -60,6 +60,7 @@ export class LocalCitizenTable {
     };
 
     localCitizenUsersTable.push(newUser);
+    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('civentral_local_citizens', JSON.stringify(localCitizenUsersTable)); } catch (e) {}
     activeSessionUser = newUser;
     return newUser;
   }
@@ -103,6 +104,7 @@ export class LocalCitizenTable {
     };
 
     localCitizenUsersTable[index] = updated;
+    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('civentral_local_citizens', JSON.stringify(localCitizenUsersTable)); } catch (e) {}
     if (activeSessionUser && activeSessionUser.citizen_user_id === citizenUserId) {
       activeSessionUser = updated;
     }
