@@ -9,6 +9,7 @@ import {
   Platform,
   SafeAreaView,
   ScrollView,
+  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
@@ -284,7 +285,9 @@ export function VerifyCitizenScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isDarkMode } = useTheme();
-  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? 24 : 20) + 12;
+  const androidStatusBar = StatusBar.currentHeight || 28;
+  const topPadding = Math.max(insets.top, Platform.OS === 'android' ? androidStatusBar : 0) + (Platform.OS === 'android' ? 14 : 10);
+  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 16) + 40;
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -1159,6 +1162,11 @@ export function VerifyCitizenScreen() {
   }, []);
 
   const handleOpenPhotoPicker = (target: 'id' | 'selfie' | 'photo1x1' | 'signature') => {
+    if (target === 'selfie') {
+      // Facial liveness requires real-time camera capture only, strictly bypassing gallery selection
+      handleTakePhoto('selfie');
+      return;
+    }
     setPhotoPickerTarget(target);
     setIsPhotoPickerVisible(true);
   };
@@ -1225,33 +1233,40 @@ export function VerifyCitizenScreen() {
     return asset.uri;
   };
 
-  const handleTakePhoto = async () => {
+  const handleTakePhoto = async (targetOverride?: 'id' | 'selfie' | 'photo1x1' | 'signature') => {
+    const target = targetOverride || photoPickerTarget;
     setIsPhotoPickerVisible(false);
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
+        Alert.alert(
+          'Camera Permission Required',
+          'Camera access is required to capture your live verification photo. Please grant camera permissions.'
+        );
         setErrorMessage('Camera access is required to capture your photo.');
         return;
       }
 
+      const isSelfie = target === 'selfie';
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
+        cameraType: isSelfie ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
         allowsEditing: false,
-        quality: 0.5,
+        quality: 0.6,
         base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const uri = await convertToDataUri(result.assets[0]);
-        if (photoPickerTarget === 'id') {
+        if (target === 'id') {
           setIdImageUri(uri);
           setHasUploadedId(true);
-        } else if (photoPickerTarget === 'selfie') {
+        } else if (target === 'selfie') {
           setSelfieImageUri(uri);
           setHasLivenessCheck(true);
-        } else if (photoPickerTarget === 'photo1x1') {
+        } else if (target === 'photo1x1') {
           setPhoto1x1Uri(uri);
-        } else if (photoPickerTarget === 'signature') {
+        } else if (target === 'signature') {
           setSignatureUri(uri);
         }
         setErrorMessage(null);
@@ -1615,12 +1630,13 @@ export function VerifyCitizenScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: dmBg }]}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} translucent backgroundColor="transparent" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
       >
         <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingTop: topPadding }]}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: topPadding, paddingBottom: bottomPadding }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -3605,10 +3621,10 @@ export function VerifyCitizenScreen() {
                       <View style={styles.photoActionsRow}>
                         <TouchableOpacity
                           style={[styles.photoActionBtn, isDarkMode && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
-                          onPress={() => handleOpenPhotoPicker('selfie')}
-                          activeOpacity={0.75}
-                        >
-                          <Text style={styles.photoActionBtnText}>Retake</Text>
+                          onPress={() => handleTakePhoto('selfie')}
+                            activeOpacity={0.75}
+                          >
+                            <Text style={styles.photoActionBtnText}>Retake Camera</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={[styles.photoActionBtn, styles.photoRemoveBtn, isDarkMode && { backgroundColor: '#3F1515', borderColor: '#7F1D1D' }]}
@@ -3942,7 +3958,7 @@ export function VerifyCitizenScreen() {
                   styles.pickerOptionBtn,
                   isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
                 ]}
-                onPress={handleTakePhoto}
+                onPress={() => handleTakePhoto()}
                 activeOpacity={0.8}
               >
                 <View style={[styles.pickerOptionIconBox, isDarkMode && { backgroundColor: '#0369A1' }]}>

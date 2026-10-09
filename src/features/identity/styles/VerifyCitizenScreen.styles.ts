@@ -9,8 +9,8 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingBottom: 48,
   },
   headerRow: {
     flexDirection: 'row',
@@ -57,6 +57,7 @@ export const styles = StyleSheet.create({
   },
   bannerTextWrapper: {
     flex: 1,
+    flexShrink: 1,
   },
   bannerTitle: {
     color: '#FFFFFF',
@@ -125,7 +126,7 @@ export const styles = StyleSheet.create({
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -213,12 +214,16 @@ export const styles = StyleSheet.create({
   districtCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 8,
   },
   districtCardTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: '#1E293B',
+    flex: 1,
+    flexShrink: 1,
+    lineHeight: 20,
   },
   districtCardTitleActive: {
     color: '#0369A1',
@@ -228,6 +233,8 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   districtBadgeActive: {
     backgroundColor: '#0284C7',
@@ -257,6 +264,7 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
   },
   dropdownTriggerActive: {
     borderColor: '#0284C7',
@@ -266,6 +274,8 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#0F172A',
     fontWeight: '600',
+    flex: 1,
+    flexShrink: 1,
   },
   dropdownHintText: {
     fontSize: 12,
