@@ -524,13 +524,13 @@ export function VerifyCitizenScreen() {
       top: 0;
       left: 0;
       width: 100%;
-      height: 18mm;
+      height: 19mm;
       z-index: 1;
     }
     .card-content {
       position: relative;
       z-index: 10;
-      padding: 2.8mm 3.2mm;
+      padding: 1.8mm 3.2mm;
       height: 100%;
       display: flex;
       flex-direction: column;
@@ -538,10 +538,10 @@ export function VerifyCitizenScreen() {
     }
     .header-block {
       text-align: center;
-      margin-bottom: 1.2mm;
+      margin-bottom: 0.8mm;
     }
     .republic-text {
-      font-size: 5.5pt;
+      font-size: 5.2pt;
       font-weight: 700;
       color: #FEE2E2;
       letter-spacing: 1.2px;
@@ -551,12 +551,12 @@ export function VerifyCitizenScreen() {
     .brand-row {
       display: flex;
       align-items: center;
-      margin-top: 1mm;
+      margin-top: 0.3mm;
       padding-right: 8mm;
     }
     .logo-emblem {
-      width: 8mm;
-      height: 8mm;
+      width: 7.2mm;
+      height: 7.2mm;
       border-radius: 50%;
       background: #FFFFFF;
       border: 1pt solid #F59E0B;
@@ -564,6 +564,7 @@ export function VerifyCitizenScreen() {
       align-items: center;
       justify-content: center;
       margin-left: 0.5mm;
+      margin-top: -0.5mm;
       overflow: hidden;
       flex-shrink: 0;
     }
@@ -788,8 +789,8 @@ export function VerifyCitizenScreen() {
           <stop offset="100%" stop-color="#D97706" />
         </linearGradient>
       </defs>
-      <path d="M 0,0 L 360,0 L 360,59 Q 266,69 180,63 T 0,76 Z" fill="url(#headerWaveGrad)" />
-      <path d="M 0,76 Q 94,63 180,63 T 360,59 L 360,63 Q 266,73 180,67 T 0,80 Z" fill="url(#goldWaveStripe)" />
+      <path d="M 0,0 L 360,0 L 360,63 Q 266,73 180,67 T 0,80 Z" fill="url(#headerWaveGrad)" />
+      <path d="M 0,80 Q 94,67 180,67 T 360,63 L 360,67 Q 266,77 180,71 T 0,84 Z" fill="url(#goldWaveStripe)" />
     </svg>
 
     <div class="card-content">

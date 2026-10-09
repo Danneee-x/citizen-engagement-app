@@ -279,12 +279,12 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
     .card-frame { width: 105mm; height: 66.2mm; background: #FFFFFF; border-radius: 3.5mm; border: 1.2px solid #CBD5E1; position: relative; overflow: hidden; page-break-inside: avoid; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     
     /* Front Ribbon */
-    .ribbon { position: absolute; top: 0; left: 0; width: 100%; height: 16mm; z-index: 1; }
-    .card-content { position: relative; z-index: 10; padding: 2.5mm 3.2mm; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
-    .republic-text { font-size: 5.5pt; font-weight: 700; color: #FFFFFF; letter-spacing: 1.2px; text-transform: uppercase; text-align: center; }
-    .brand-row { display: flex; align-items: center; margin-top: 0.8mm; justify-content: center; }
-    .brand-title { font-size: 9.5pt; font-weight: 900; color: #FFFFFF; text-transform: uppercase; letter-spacing: 0.4px; }
-    .brand-sub { font-size: 5.5pt; font-weight: 700; color: #FDE047; text-transform: uppercase; letter-spacing: 0.8px; }
+    .ribbon { position: absolute; top: 0; left: 0; width: 100%; height: 18mm; z-index: 1; }
+    .card-content { position: relative; z-index: 10; padding: 2mm 3.2mm; height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+    .republic-text { font-size: 5.2pt; font-weight: 700; color: #FFFFFF; letter-spacing: 1.2px; text-transform: uppercase; text-align: center; line-height: 1; }
+    .brand-row { display: flex; align-items: center; margin-top: 0.4mm; justify-content: center; }
+    .brand-title { font-size: 9.2pt; font-weight: 900; color: #FFFFFF; text-transform: uppercase; letter-spacing: 0.3px; line-height: 1.1; }
+    .brand-sub { font-size: 5.4pt; font-weight: 800; color: #FDE047; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 0.3mm; }
     
     .body-cols { display: flex; gap: 2.8mm; margin-top: 2.2mm; flex: 1; }
     .col-photo { width: 22mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
@@ -349,14 +349,14 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
           <stop offset="100%" stop-color="${headerWaveStops[3]}" />
         </linearGradient>
       </defs>
-      <path d="M 0,0 L 360,0 L 360,59 Q 266,69 180,63 T 0,76 Z" fill="url(#wave)" />
-      <path d="M 0,76 Q 94,63 180,63 T 360,59 L 360,63 Q 266,73 180,67 T 0,80 Z" fill="${goldStripeColors[0]}" />
+      <path d="M 0,0 L 360,0 L 360,63 Q 266,73 180,67 T 0,80 Z" fill="url(#wave)" />
+      <path d="M 0,80 Q 94,67 180,67 T 360,63 L 360,63 Q 266,73 180,67 T 0,80 Z" fill="${goldStripeColors[0]}" />
     </svg>
     <div class="card-content">
       <div>
         <div class="republic-text">Republic of the Philippines</div>
         <div class="brand-row">
-          <img src="${logoUri}" style="width: 7.5mm; height: 7.5mm; border-radius: 50%; border: 1.2px solid #F59E0B; margin-right: 2.2mm;" />
+          <img src="${logoUri}" style="width: 7mm; height: 7mm; border-radius: 50%; border: 1.2px solid #F59E0B; margin-right: 2mm; margin-top: -0.5mm;" />
           <div style="text-align: center;">
             <div class="brand-title">${cardTitle}</div>
             <div class="brand-sub">${cardSubtitle}</div>
@@ -637,7 +637,7 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
 
                 {/* Wavy Header Ribbon (Vector Gradient Ribbon with Gold Under-stripe) */}
                 <View pointerEvents="none" style={styles.ribbonContainer}>
-                  <Svg width="100%" height={56} viewBox="0 0 360 56" preserveAspectRatio="none">
+                  <Svg width="100%" height={60} viewBox="0 0 360 60" preserveAspectRatio="none">
                     <Defs>
                       <SvgGradient id="modalWaveGrad" x1="0" x2="1" y1="0" y2="0">
                         <SvgStop offset="0%" stopColor={headerWaveStops[0]} />
@@ -651,8 +651,8 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
                         <SvgStop offset="100%" stopColor={goldStripeColors[2]} />
                       </SvgGradient>
                     </Defs>
-                    <SvgPath d="M 0,0 L 360,0 L 360,42 Q 266,50 180,45 T 0,52 Z" fill="url(#modalWaveGrad)" />
-                    <SvgPath d="M 0,52 Q 94,45 180,45 T 360,42 L 360,45 Q 266,53 180,48 T 0,56 Z" fill="url(#modalGoldStripe)" />
+                    <SvgPath d="M 0,0 L 360,0 L 360,46 Q 266,55 180,50 T 0,56 Z" fill="url(#modalWaveGrad)" />
+                    <SvgPath d="M 0,56 Q 94,50 180,50 T 360,46 L 360,50 Q 266,59 180,54 T 0,60 Z" fill="url(#modalGoldStripe)" />
                   </Svg>
                 </View>
 
@@ -660,14 +660,14 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
                 <View style={styles.cardInnerContent}>
                   
                   {/* Header Republic Title & Brand */}
-                  <View style={{ marginBottom: 4 }}>
+                  <View style={{ marginBottom: 2 }}>
                     <Text style={styles.cardRepublicText}>REPUBLIC OF THE PHILIPPINES</Text>
                     
                     <View style={styles.cardBrandRow}>
                       <View style={styles.cardEmblemRing}>
                         <Image
                           source={require('@/assets/images/logo.png')}
-                          style={{ width: 22, height: 22 }}
+                          style={{ width: 19, height: 19 }}
                           resizeMode="contain"
                         />
                       </View>
@@ -675,7 +675,7 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
                         <Text style={styles.cardBrandTitle}>{cardTitle}</Text>
                         <Text style={styles.cardBrandSubtitle}>{cardSubtitle}</Text>
                       </View>
-                      <View style={{ width: 22 }} />
+                      <View style={{ width: 21 }} />
                     </View>
                   </View>
 
@@ -1171,12 +1171,12 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    height: 56,
+    height: 60,
     zIndex: 1,
   },
   cardInnerContent: {
     paddingHorizontal: 10,
-    paddingTop: 6,
+    paddingTop: 3.5,
     paddingBottom: 8,
     height: '100%',
     justifyContent: 'space-between',
@@ -1184,28 +1184,31 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   cardRepublicText: {
-    fontSize: 7.2,
+    fontSize: 6.8,
     fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 1.5,
+    letterSpacing: 1.4,
     textTransform: 'uppercase',
     textAlign: 'center',
+    lineHeight: 8.5,
+    marginBottom: 0.5,
   },
   cardBrandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
+    marginTop: 0,
     justifyContent: 'center',
   },
   cardEmblemRing: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 21,
+    height: 21,
+    borderRadius: 10.5,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.2,
     borderColor: '#F59E0B',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: -2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
@@ -1213,22 +1216,24 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   cardBrandTitle: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
     textTransform: 'uppercase',
     textShadowColor: 'rgba(0,0,0,0.3)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
+    lineHeight: 13,
   },
   cardBrandSubtitle: {
-    fontSize: 6.8,
-    fontWeight: '700',
+    fontSize: 6.6,
+    fontWeight: '800',
     color: '#FDE047',
-    letterSpacing: 0.7,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
-    marginTop: 1,
+    marginTop: 0.5,
+    textAlign: 'center',
   },
   cardColumnsRow: {
     flexDirection: 'row',
