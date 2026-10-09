@@ -19,6 +19,7 @@ import { useTheme } from '@/src/context/ThemeContext';
 import { AuthService } from '@/src/services/auth-service';
 import { ProfileService } from '@/src/services/profile-service';
 import { CertificateService } from '@/src/services/certificate-service';
+import { CertificateClaimVoucherCard } from '@/src/components/CertificateClaimVoucherModal';
 
 export interface CertificateType {
   id: string;
@@ -125,10 +126,6 @@ export default function CertificateRequestsScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
 
-  // Active Tab: 'apply' vs 'my_requests'
-  const [activeTab, setActiveTab] = useState<'apply' | 'my_requests'>('apply');
-  const [myRequests, setMyRequests] = useState<any[]>([]);
-
   // Wizard Steps: 1 = Choose Document, 2 = Fill Details, 3 = Review Request, 4 = Post-Submit Tracking
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
 
@@ -136,20 +133,18 @@ export default function CertificateRequestsScreen() {
   const [selectedCert, setSelectedCert] = useState<CertificateType | null>(null);
 
   // Application Form Fields
-  const [applicantName, setApplicantName] = useState('');
-  const [streetAddress, setStreetAddress] = useState('');
-  const [barangay, setBarangay] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [birthDate, setBirthDate] = useState('');
-  const [civilStatus, setCivilStatus] = useState('');
-  const [occupation, setOccupation] = useState('');
+  const [applicantName, setApplicantName] = useState('Danny Espelita Jr');
+  const [streetAddress, setStreetAddress] = useState('Block 12 Lot 5, Sampaguita St.');
+  const [barangay, setBarangay] = useState('Barangay 171 (Bagumbong)');
+  const [phone, setPhone] = useState('09171234567');
+  const [email, setEmail] = useState('danny.resident@caloocan.ph');
 
   const [selectedPurpose, setSelectedPurpose] = useState(PURPOSE_OPTIONS[0]);
-  const [isPurposeDropdownOpen, setIsPurposeDropdownOpen] = useState(false);
   const [purposeDetails, setPurposeDetails] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
-  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string; uri?: string; data?: string }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string; uri?: string }[]>([
+    { id: 'f-1', name: 'philsys_valid_id.pdf', size: '1.1 MB' },
+  ]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -168,16 +163,16 @@ export default function CertificateRequestsScreen() {
     };
   } | null>(null);
 
-  // Load Citizen profile & verified demographics
+  // Load Citizen profile
   useEffect(() => {
     async function loadCitizen() {
       try {
         const session = AuthService.getCurrentUser();
         if (session.user) {
           const u = session.user;
-          setApplicantName(`${u.first_name || ''} ${u.last_name || ''}`.trim());
-          setEmail(u.email || '');
-          setPhone(u.mobile_number || '');
+          setApplicantName(`${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Danny Espelita Jr');
+          setEmail(u.email || 'danny.resident@caloocan.ph');
+          setPhone(u.mobile_number || '09171234567');
         }
 
         const res = await ProfileService.getProfile(session.email || undefined, session.citizen_user_id || undefined);
@@ -189,42 +184,6 @@ export default function CertificateRequestsScreen() {
           if (d.barangay) setBarangay(d.barangay);
           if (d.address) setStreetAddress(d.address);
         }
-
-        // Prefill from verified citizen table / database
-        try {
-          const verifRes = await ProfileService.getVerificationStatus(
-            session.citizen_user_id || undefined,
-            session.email || undefined
-          );
-          if (verifRes?.data) {
-            const vd = verifRes.data;
-            if (vd.first_name && vd.last_name) {
-              const full = `${vd.first_name} ${vd.middle_name ? vd.middle_name + ' ' : ''}${vd.last_name}${vd.suffix ? ' ' + vd.suffix : ''}`.trim();
-              setApplicantName(full);
-            }
-            if (vd.birth_date) setBirthDate(vd.birth_date);
-            if (vd.civil_status) setCivilStatus(vd.civil_status);
-            if (vd.occupation) setOccupation(vd.occupation);
-            if (vd.barangay) setBarangay(vd.barangay);
-            if (vd.street_address) setStreetAddress(vd.street_address);
-            if (vd.phone) setPhone(vd.phone);
-          }
-        } catch (ve) {
-          console.warn('Verification status prefill notice:', ve);
-        }
-
-        // Load past certificate requests for My Requests tab
-        try {
-          const pastRequests = await CertificateService.getCertificateRequests(
-            session.citizen_user_id || undefined,
-            session.email || undefined
-          );
-          if (pastRequests && Array.isArray(pastRequests)) {
-            setMyRequests(pastRequests);
-          }
-        } catch (re) {
-          console.warn('Certificate requests load notice:', re);
-        }
       } catch (err) {
         console.warn('Citizen data fetch error:', err);
       }
@@ -234,13 +193,9 @@ export default function CertificateRequestsScreen() {
 
   const onRefresh = React.useCallback(() => {
     setRefreshing(true);
-    const session = AuthService.getCurrentUser();
-    CertificateService.getCertificateRequests(
-      session.citizen_user_id || undefined,
-      session.email || undefined
-    ).then((data) => {
-      if (data && Array.isArray(data)) setMyRequests(data);
-    }).finally(() => setRefreshing(false));
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 600);
   }, []);
 
   const handleSelectCertificate = (cert: CertificateType) => {
@@ -258,14 +213,11 @@ export default function CertificateRequestsScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: false,
-        quality: 0.6,
-        base64: true,
+        quality: 0.85,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-        const base64Data = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined;
         setUploadedFiles((prev) => [
           ...prev,
           {
@@ -273,7 +225,6 @@ export default function CertificateRequestsScreen() {
             name: asset.fileName || `supporting_doc_${prev.length + 1}.jpg`,
             size: `${Math.round((asset.fileSize || 1024 * 600) / 1024)} KB`,
             uri: asset.uri,
-            data: base64Data,
           },
         ]);
       }
@@ -324,7 +275,6 @@ export default function CertificateRequestsScreen() {
           name: f.name,
           size: f.size,
           uri: f.uri,
-          data: f.data || (f.uri?.startsWith('data:image') ? f.uri : undefined),
         })),
         encoded_by: 'Citizen Mobile App',
       });
@@ -343,21 +293,6 @@ export default function CertificateRequestsScreen() {
             validity: 'Valid for 6 Months from date of issuance',
           },
         });
-
-        // Prepend to myRequests
-        const newReq = {
-          request_id: res.data.request_id || Date.now(),
-          reference_no: res.data.reference_no,
-          certificate_type: res.data.certificate_type,
-          applicant_name: res.data.applicant_name,
-          barangay: res.data.barangay,
-          status: res.data.status || 'Pending',
-          fee_amount: res.data.fee_amount || '50.00',
-          payment_status: res.data.payment_status || 'Pending',
-          submission_date: res.data.submission_date,
-          pickup_location: res.data.pickup_location,
-        };
-        setMyRequests((prev) => [newReq, ...prev]);
 
         setCurrentStep(4);
       }
@@ -399,15 +334,9 @@ export default function CertificateRequestsScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => {
-            if (activeTab === 'my_requests') {
-              setActiveTab('apply');
-            } else if (currentStep === 2) {
-              setCurrentStep(1);
-            } else if (currentStep === 3) {
-              setCurrentStep(2);
-            } else {
-              router.back();
-            }
+            if (currentStep === 2) setCurrentStep(1);
+            else if (currentStep === 3) setCurrentStep(2);
+            else router.back();
           }}
           activeOpacity={0.7}
         >
@@ -417,175 +346,17 @@ export default function CertificateRequestsScreen() {
             color={isDarkMode ? '#38BDF8' : '#2563EB'}
           />
           <Text style={[styles.backText, isDarkMode && { color: '#38BDF8' }]}>
-            {activeTab === 'my_requests'
-              ? 'Back to Certificates'
-              : currentStep === 1
-              ? 'Back'
+            {currentStep === 1
+              ? 'Back to Services Directory'
               : currentStep === 2
               ? 'Change Selected Certificate'
               : 'Edit Application Details'}
           </Text>
         </TouchableOpacity>
 
-        {/* TOP SEGMENTED TOGGLE SWITCH */}
-        <View style={[styles.tabSegmentContainer, isDarkMode && styles.tabSegmentContainerDark]}>
-          <TouchableOpacity
-            style={[styles.tabSegmentButton, activeTab === 'apply' && styles.tabSegmentButtonActive]}
-            onPress={() => setActiveTab('apply')}
-            activeOpacity={0.8}
-          >
-            <IconSymbol
-              name="doc.text.fill"
-              size={15}
-              color={activeTab === 'apply' ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B')}
-            />
-            <Text
-              style={[
-                styles.tabSegmentText,
-                activeTab === 'apply' && styles.tabSegmentTextActive,
-                isDarkMode && activeTab !== 'apply' && { color: '#94A3B8' },
-              ]}
-            >
-              Request Certificate
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.tabSegmentButton, activeTab === 'my_requests' && styles.tabSegmentButtonActive]}
-            onPress={() => setActiveTab('my_requests')}
-            activeOpacity={0.8}
-          >
-            <IconSymbol
-              name="list.bullet.rectangle.fill"
-              size={15}
-              color={activeTab === 'my_requests' ? '#FFFFFF' : (isDarkMode ? '#94A3B8' : '#64748B')}
-            />
-            <Text
-              style={[
-                styles.tabSegmentText,
-                activeTab === 'my_requests' && styles.tabSegmentTextActive,
-                isDarkMode && activeTab !== 'my_requests' && { color: '#94A3B8' },
-              ]}
-            >
-              My Requests {myRequests.length > 0 ? `(${myRequests.length})` : ''}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {activeTab === 'my_requests' ? (
-          <View style={styles.myRequestsSection}>
-            <View
-              style={[
-                styles.headerBannerCard,
-                isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
-              ]}
-            >
-              <View style={styles.bannerTopRow}>
-                <View style={[styles.iconCircle, { backgroundColor: '#E0F2FE' }]}>
-                  <IconSymbol name="list.bullet.rectangle.fill" size={24} color="#0284C7" />
-                </View>
-                <Badge label="STATUS & CLAIMS" variant="info" />
-              </View>
-              <Text style={[styles.serviceTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                My Certificate Requests
-              </Text>
-              <Text style={[styles.serviceExplanation, isDarkMode && { color: '#94A3B8' }]}>
-                Track real-time evaluation, verification status, and claim instructions for your submitted documents.
-              </Text>
-            </View>
-
-            {myRequests.length === 0 ? (
-              <View style={[styles.emptyRequestsBox, isDarkMode && { backgroundColor: '#152238', borderColor: '#2B3958' }]}>
-                <IconSymbol name="doc.plaintext.fill" size={48} color={isDarkMode ? '#475569' : '#CBD5E1'} />
-                <Text style={[styles.emptyRequestsTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                  No Certificate Requests Yet
-                </Text>
-                <Text style={[styles.emptyRequestsDesc, isDarkMode && { color: '#94A3B8' }]}>
-                  You haven't requested any certificates or barangay clearances yet. Select a document above to submit your request.
-                </Text>
-                <TouchableOpacity
-                  style={styles.requestNowBtn}
-                  onPress={() => setActiveTab('apply')}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.requestNowBtnText}>Request a Certificate Now</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={{ gap: 14 }}>
-                {myRequests.map((req, idx) => {
-                  const s = (req.status || '').toLowerCase();
-                  const isReady = s.includes('ready') || s.includes('print');
-                  const isDone = s.includes('complet') || s.includes('claim');
-
-                  let badgeLabel = 'IN REVIEW';
-                  let badgeVariant: any = 'warning';
-                  if (isReady) {
-                    badgeLabel = 'READY FOR RELEASE';
-                    badgeVariant = 'success';
-                  } else if (isDone) {
-                    badgeLabel = 'COMPLETED';
-                    badgeVariant = 'info';
-                  }
-
-                  return (
-                    <View
-                      key={req.reference_no || idx}
-                      style={[
-                        styles.requestCard,
-                        isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
-                      ]}
-                    >
-                      <View style={styles.requestCardHeader}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.requestRefText}>Ref: {req.reference_no}</Text>
-                          <Text style={[styles.requestTitleText, isDarkMode && { color: '#F8FAFC' }]}>
-                            {req.certificate_type}
-                          </Text>
-                        </View>
-                        <Badge label={badgeLabel} variant={badgeVariant} />
-                      </View>
-
-                      <View style={[styles.requestCardMeta, isDarkMode && { backgroundColor: '#152238' }]}>
-                        <View style={styles.requestMetaRow}>
-                          <Text style={[styles.requestMetaLabel, isDarkMode && { color: '#94A3B8' }]}>Applicant:</Text>
-                          <Text style={[styles.requestMetaValue, isDarkMode && { color: '#CBD5E1' }]}>{req.applicant_name}</Text>
-                        </View>
-                        <View style={styles.requestMetaRow}>
-                          <Text style={[styles.requestMetaLabel, isDarkMode && { color: '#94A3B8' }]}>Barangay / Pickup:</Text>
-                          <Text style={[styles.requestMetaValue, isDarkMode && { color: '#CBD5E1' }]}>{req.pickup_location || req.barangay}</Text>
-                        </View>
-                        <View style={styles.requestMetaRow}>
-                          <Text style={[styles.requestMetaLabel, isDarkMode && { color: '#94A3B8' }]}>Date Submitted:</Text>
-                          <Text style={[styles.requestMetaValue, isDarkMode && { color: '#CBD5E1' }]}>{req.submission_date}</Text>
-                        </View>
-                        <View style={styles.requestMetaRow}>
-                          <Text style={[styles.requestMetaLabel, isDarkMode && { color: '#94A3B8' }]}>Fee Amount:</Text>
-                          <Text style={[styles.requestMetaValue, { color: req.fee_amount === '0.00' ? '#10B981' : '#0284C7', fontWeight: '800' }]}>
-                            {req.fee_amount === '0.00' ? 'FREE (Indigency Waived)' : `₱${req.fee_amount}`}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {isReady && (
-                        <View style={styles.readyReleaseBanner}>
-                          <IconSymbol name="checkmark.circle.fill" size={16} color="#059669" />
-                          <Text style={styles.readyReleaseBannerText}>
-                            Your certificate is verified and ready for pickup or release at the Barangay counter.
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          </View>
-        ) : (
+        {/* ── STEP 1: CHOOSE DOCUMENT ── */}
+        {currentStep === 1 && (
           <>
-            {/* ── STEP 1: CHOOSE DOCUMENT ── */}
-            {currentStep === 1 && (
-              <>
             <View
               style={[
                 styles.headerBannerCard,
@@ -772,56 +543,6 @@ export default function CertificateRequestsScreen() {
               <View style={styles.rowInputs}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
-                    Date of Birth
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
-                    ]}
-                    value={birthDate}
-                    onChangeText={setBirthDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
-                    Civil Status
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textInput,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
-                    ]}
-                    value={civilStatus}
-                    onChangeText={setCivilStatus}
-                    placeholder="e.g. Single / Married"
-                    placeholderTextColor="#94A3B8"
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
-                  Occupation / Employment
-                </Text>
-                <TextInput
-                  style={[
-                    styles.textInput,
-                    isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
-                  ]}
-                  value={occupation}
-                  onChangeText={setOccupation}
-                  placeholder="e.g. Employee / Self-Employed"
-                  placeholderTextColor="#94A3B8"
-                />
-              </View>
-
-              <View style={styles.rowInputs}>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
                     Mobile Phone *
                   </Text>
                   <TextInput
@@ -856,60 +577,34 @@ export default function CertificateRequestsScreen() {
                 <Text style={[styles.inputLabel, isDarkMode && { color: '#CBD5E1' }]}>
                   Purpose of Request *
                 </Text>
-
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownButton,
-                    isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
-                  ]}
-                  onPress={() => setIsPurposeDropdownOpen(!isPurposeDropdownOpen)}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.dropdownButtonText, isDarkMode && { color: '#F8FAFC' }]}>
-                    {selectedPurpose}
-                  </Text>
-                  <IconSymbol
-                    name={isPurposeDropdownOpen ? "chevron.up" : "chevron.down"}
-                    size={16}
-                    color={isDarkMode ? '#38BDF8' : '#2563EB'}
-                  />
-                </TouchableOpacity>
-
-                {isPurposeDropdownOpen && (
-                  <View style={[styles.dropdownList, isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' }]}>
-                    {PURPOSE_OPTIONS.map((p) => {
-                      const isSelected = selectedPurpose === p;
-                      return (
-                        <TouchableOpacity
-                          key={p}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.purposePillsScroll}>
+                  {PURPOSE_OPTIONS.map((p) => {
+                    const isSelected = selectedPurpose === p;
+                    return (
+                      <TouchableOpacity
+                        key={p}
+                        style={[
+                          styles.purposePill,
+                          isSelected && styles.purposePillActive,
+                          isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
+                          isSelected && isDarkMode && { backgroundColor: '#0284C7', borderColor: '#0284C7' },
+                        ]}
+                        onPress={() => setSelectedPurpose(p)}
+                        activeOpacity={0.8}
+                      >
+                        <Text
                           style={[
-                            styles.dropdownItem,
-                            isSelected && styles.dropdownItemActive,
-                            isDarkMode && isSelected && { backgroundColor: '#1E293B' },
+                            styles.purposePillText,
+                            isSelected && styles.purposePillTextActive,
+                            isDarkMode && { color: isSelected ? '#FFFFFF' : '#CBD5E1' },
                           ]}
-                          onPress={() => {
-                            setSelectedPurpose(p);
-                            setIsPurposeDropdownOpen(false);
-                          }}
-                          activeOpacity={0.7}
                         >
-                          <Text
-                            style={[
-                              styles.dropdownItemText,
-                              isSelected && styles.dropdownItemTextActive,
-                              isDarkMode && { color: isSelected ? '#38BDF8' : '#CBD5E1' },
-                            ]}
-                          >
-                            {p}
-                          </Text>
-                          {isSelected && (
-                            <IconSymbol name="checkmark" size={15} color="#0284C7" />
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                )}
+                          {p}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
               </View>
 
               <View style={styles.inputGroup}>
@@ -1108,182 +803,26 @@ export default function CertificateRequestsScreen() {
               Your document request is being processed by the Barangay & City Registry.
             </Text>
 
-            {/* Reference Number & Status Card */}
-            <View
-              style={[
-                styles.refCard,
-                isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
-              ]}
-            >
-              <View style={styles.refTopRow}>
-                <Text style={styles.refCardLabel}>Reference Number</Text>
-                <Badge label="IN REVIEW" variant="warning" />
-              </View>
-              <Text style={[styles.refCardNumber, isDarkMode && { color: '#38BDF8' }]}>
-                {submittedData.referenceNumber}
-              </Text>
-
-              <View style={styles.refDivider} />
-
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Document Type:</Text>
-                <Text style={[styles.metaVal, isDarkMode && { color: '#F8FAFC' }]}>
-                  {submittedData.certificateName}
-                </Text>
-              </View>
-
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Submission Date:</Text>
-                <Text style={[styles.metaVal, isDarkMode && { color: '#F8FAFC' }]}>
-                  {submittedData.submissionDate}
-                </Text>
-              </View>
-
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Request Status:</Text>
-                <Text style={[styles.metaVal, { color: '#D97706', fontWeight: '800' }]}>
-                  {submittedData.requestStatus}
-                </Text>
-              </View>
-            </View>
-
-            {/* Processing Updates Card */}
-            <View
-              style={[
-                styles.updateCard,
-                isDarkMode && { backgroundColor: '#152238', borderColor: '#0284C7' },
-              ]}
-            >
-              <View style={styles.updateHeaderRow}>
-                <IconSymbol name="bell.fill" size={16} color="#0284C7" />
-                <Text style={[styles.updateHeading, isDarkMode && { color: '#38BDF8' }]}>
-                  Processing Updates
-                </Text>
-              </View>
-              <Text style={[styles.updateText, isDarkMode && { color: '#CBD5E1' }]}>
-                {submittedData.processingUpdates}
-              </Text>
-            </View>
-
-            {/* Release & Download Information Card */}
-            <View
-              style={[
-                styles.claimCard,
-                isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
-              ]}
-            >
-              <View style={styles.updateHeaderRow}>
-                <IconSymbol name="arrow.down.doc.fill" size={16} color="#10B981" />
-                <Text style={[styles.updateHeading, { color: '#10B981' }]}>
-                  Release & Download Information
-                </Text>
-              </View>
-
-              <View style={styles.claimGrid}>
-                <View style={styles.claimRow}>
-                  <Text style={styles.claimLabel}>Digital Download:</Text>
-                  <Text style={[styles.claimVal, isDarkMode && { color: '#F8FAFC' }]}>
-                    {submittedData.releaseDownloadInfo.digitalDownload}
-                  </Text>
-                </View>
-
-                <View style={styles.claimRow}>
-                  <Text style={styles.claimLabel}>Physical Pickup:</Text>
-                  <Text style={[styles.claimVal, { color: '#0284C7', fontWeight: '700' }, isDarkMode && { color: '#38BDF8' }]}>
-                    {submittedData.releaseDownloadInfo.pickupLocation}
-                  </Text>
-                </View>
-
-                <View style={styles.claimRow}>
-                  <Text style={styles.claimLabel}>Validity Period:</Text>
-                  <Text style={[styles.claimVal, isDarkMode && { color: '#CBD5E1' }]}>
-                    {submittedData.releaseDownloadInfo.validity}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Status Progression Timeline */}
-            <View
-              style={[
-                styles.timelineCard,
-                isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
-              ]}
-            >
-              <Text style={[styles.timelineHeading, isDarkMode && { color: '#F8FAFC' }]}>
-                Document Lifecycle Tracking
-              </Text>
-              <Text style={[styles.timelineSubheading, isDarkMode && { color: '#94A3B8' }]}>
-                Submitted → Under Review → Processing → Ready for Release → Completed
-              </Text>
-
-              <View style={styles.timelineList}>
-                {CERTIFICATE_STATUS_STAGES.map((stage, idx) => {
-                  const isDone = idx === 0;
-                  const isCurrent = idx === 1;
-                  return (
-                    <View key={stage.id} style={styles.timelineRow}>
-                      <View style={styles.timelineMarkerCol}>
-                        <View
-                          style={[
-                            styles.timelineDot,
-                            isDone && styles.timelineDotDone,
-                            isCurrent && styles.timelineDotCurrent,
-                          ]}
-                        >
-                          {isDone ? (
-                            <IconSymbol name="checkmark" size={11} color="#FFFFFF" />
-                          ) : isCurrent ? (
-                            <View style={styles.currentInnerDot} />
-                          ) : null}
-                        </View>
-                        {idx < CERTIFICATE_STATUS_STAGES.length - 1 && (
-                          <View
-                            style={[
-                              styles.timelineTrack,
-                              isDone && styles.timelineTrackDone,
-                            ]}
-                          />
-                        )}
-                      </View>
-
-                      <View style={styles.timelineContentCol}>
-                        <Text
-                          style={[
-                            styles.stageTitle,
-                            (isDone || isCurrent) && styles.stageTitleActive,
-                            isDarkMode && { color: isDone || isCurrent ? '#F8FAFC' : '#64748B' },
-                          ]}
-                        >
-                          {stage.label}
-                          {isDone && ' ✓'}
-                          {isCurrent && ' (In Progress)'}
-                        </Text>
-                        <Text style={[styles.stageDesc, isDarkMode && { color: '#94A3B8' }]}>
-                          {stage.desc}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
+            {/* Official Digital Claim Voucher Card */}
+            <CertificateClaimVoucherCard
+              voucherData={{
+                referenceNumber: submittedData.referenceNumber,
+                certificateName: submittedData.certificateName,
+                applicantName: applicantName,
+                barangay: barangay,
+                status: 'Submitted',
+                submissionDate: submittedData.submissionDate,
+                pickupLocation: submittedData.releaseDownloadInfo.pickupLocation,
+                estimatedTurnaround: selectedCert?.processingTime || '1 to 2 Business Days',
+                feeAmount: selectedCert?.fee || '₱50.00',
+                paymentStatus: selectedCert?.fee?.includes('FREE') ? 'Waived' : 'Pending',
+                validityPeriod: submittedData.releaseDownloadInfo.validity,
+                purpose: selectedPurpose,
+              }}
+            />
 
             {/* Actions */}
             <View style={styles.actionButtonsCol}>
-              <TouchableOpacity
-                style={styles.viewStatusBtn}
-                onPress={() => {
-                  setActiveTab('my_requests');
-                  setCurrentStep(1);
-                  setSubmittedData(null);
-                }}
-                activeOpacity={0.88}
-              >
-                <IconSymbol name="list.bullet.rectangle.fill" size={16} color="#FFFFFF" />
-                <Text style={styles.viewStatusBtnText}>View in My Requests</Text>
-              </TouchableOpacity>
-
               <TouchableOpacity
                 style={styles.anotherBtn}
                 onPress={handleReset}
@@ -1294,15 +833,13 @@ export default function CertificateRequestsScreen() {
 
               <TouchableOpacity
                 style={styles.doneBtn}
-                onPress={() => router.back()}
+                onPress={() => router.replace('/(tabs)/services' as any)}
                 activeOpacity={0.88}
               >
-                <Text style={styles.doneBtnText}>Back</Text>
+                <Text style={styles.doneBtnText}>Back to Services Directory</Text>
               </TouchableOpacity>
             </View>
           </View>
-        )}
-          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -1315,10 +852,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 130,
-    width: '100%',
-    maxWidth: 680,
-    alignSelf: 'center',
+    paddingBottom: 120,
   },
   backButton: {
     flexDirection: 'row',
@@ -1918,221 +1452,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   doneBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  /* Tab Segmented Control */
-  tabSegmentContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  tabSegmentContainerDark: {
-    backgroundColor: '#152238',
-    borderColor: '#3A506B',
-  },
-  tabSegmentButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    gap: 6,
-  },
-  tabSegmentButtonActive: {
-    backgroundColor: '#0284C7',
-    shadowColor: '#0284C7',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  tabSegmentText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  tabSegmentTextActive: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  /* Dropdown Styles */
-  dropdownButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  dropdownButtonText: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#0F172A',
-    flex: 1,
-  },
-  dropdownList: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    borderRadius: 10,
-    marginTop: 6,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
-  },
-  dropdownItemActive: {
-    backgroundColor: '#F0F9FF',
-  },
-  dropdownItemText: {
-    fontSize: 13,
-    color: '#334155',
-    flex: 1,
-  },
-  dropdownItemTextActive: {
-    color: '#0284C7',
-    fontWeight: '700',
-  },
-  /* My Requests View */
-  myRequestsSection: {
-    width: '100%',
-  },
-  emptyRequestsBox: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 8,
-  },
-  emptyRequestsTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-    marginTop: 14,
-    marginBottom: 6,
-  },
-  emptyRequestsDesc: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 20,
-  },
-  requestNowBtn: {
-    backgroundColor: '#0284C7',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  requestNowBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  requestCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 14,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  requestCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  requestRefText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#0284C7',
-    marginBottom: 2,
-  },
-  requestTitleText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  requestCardMeta: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 10,
-    padding: 10,
-    gap: 6,
-  },
-  requestMetaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  requestMetaLabel: {
-    fontSize: 11.5,
-    color: '#64748B',
-  },
-  requestMetaValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0F172A',
-    maxWidth: '65%',
-    textAlign: 'right',
-  },
-  readyReleaseBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 8,
-    padding: 8,
-    marginTop: 10,
-  },
-  readyReleaseBannerText: {
-    fontSize: 11.5,
-    color: '#065F46',
-    fontWeight: '600',
-    flex: 1,
-  },
-  viewStatusBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0F4C81',
-    width: '100%',
-    paddingVertical: 13,
-    borderRadius: 12,
-    gap: 8,
-  },
-  viewStatusBtnText: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',

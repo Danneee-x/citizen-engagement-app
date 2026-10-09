@@ -8,10 +8,7 @@ export const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 130,
-    width: '100%',
-    maxWidth: 680,
-    alignSelf: 'center',
+    paddingBottom: 110,
   },
   headerContainer: {
     marginBottom: 16,
@@ -259,8 +256,6 @@ export const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     width: '100%',
-    maxWidth: 520,
-    maxHeight: '88%',
   },
   modalHeaderRow: {
     flexDirection: 'row',
@@ -362,5 +357,36 @@ export const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '700',
+  },
+  claimVoucherPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  claimVoucherPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0F53D1',
+  },
+  openVoucherBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0F53D1',
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginTop: 10,
+  },
+  openVoucherBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

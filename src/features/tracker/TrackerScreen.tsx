@@ -15,6 +15,7 @@ import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
 import { CivicApiService } from '@/src/services/api';
 import { AuthService } from '@/src/services/auth-service';
+import { CertificateClaimVoucherModal, ClaimVoucherData } from '@/src/components/CertificateClaimVoucherModal';
 import { styles } from './styles/TrackerScreen.styles';
 import { DomainApplication } from '@/types/domain';
 
@@ -36,9 +37,37 @@ export function TrackerScreen() {
   // Modal State for Selected Application Timeline Details
   const [selectedApp, setSelectedApp] = useState<DomainApplication | null>(null);
 
+  // Digital Claim Voucher State
+  const [activeVoucher, setActiveVoucher] = useState<ClaimVoucherData | null>(null);
+
+  const handleOpenClaimVoucher = (app: DomainApplication) => {
+    const isIndigency = app.serviceTitle.toLowerCase().includes('indigency');
+    const u = session.user;
+    const applicantName = u?.first_name
+      ? `${u.first_name} ${u.last_name || ''}`.trim()
+      : app.applicantId && !app.applicantId.includes('@')
+      ? app.applicantId
+      : 'Danny Espelita Jr';
+
+    setActiveVoucher({
+      referenceNumber: app.id,
+      certificateName: app.serviceTitle,
+      applicantName,
+      barangay: (app as any).barangay || 'Barangay 171',
+      status: app.status === 'Completed' ? 'Completed' : app.status === 'Approved' ? 'Ready for Release' : 'Under Review',
+      submissionDate: app.createdAt,
+      pickupLocation: `${(app as any).barangay || 'Barangay 171'} Hall - Administrative Records Desk`,
+      estimatedTurnaround: isIndigency ? 'Same-Day Fast Track' : '1 to 2 Business Days',
+      feeAmount: (app as any).feeAmount ? `₱${(app as any).feeAmount}` : isIndigency ? '₱0.00' : '₱50.00',
+      paymentStatus: (app as any).paymentStatus || (app.status === 'Completed' || app.status === 'Approved' ? 'Paid' : isIndigency ? 'Waived' : 'Pending'),
+      validityPeriod: 'Valid for 6 Months from date of issuance',
+      purpose: (app as any).purpose || 'Official Identification & Barangay Registry Filing',
+    });
+  };
+
   // Fetch Applications
   const fetchApplications = async () => {
-    const data = await CivicApiService.getApplications(activeEmail);
+    const data = await CivicApiService.getApplications(activeEmail, session.citizen_user_id);
     // If backend returns empty list, provide clean dynamic initial tracked applications for demonstration
     if (!data || data.length === 0) {
       setApplications([
@@ -275,9 +304,22 @@ export function TrackerScreen() {
                 {/* Card Footer */}
                 <View style={styles.cardFooterRow}>
                   <Text style={styles.updatedDateText}>Updated: {app.updatedAt}</Text>
-                  <View style={styles.viewTimelineBtn}>
-                    <Text style={styles.viewTimelineText}>View Details</Text>
-                    <IconSymbol name="chevron.right" size={14} color="#176B87" />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity
+                      style={styles.claimVoucherPill}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleOpenClaimVoucher(app);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <IconSymbol name="qrcode" size={13} color="#0F53D1" />
+                      <Text style={styles.claimVoucherPillText}>Claim Voucher</Text>
+                    </TouchableOpacity>
+                    <View style={styles.viewTimelineBtn}>
+                      <Text style={styles.viewTimelineText}>View Details</Text>
+                      <IconSymbol name="chevron.right" size={14} color="#176B87" />
+                    </View>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -378,6 +420,16 @@ export function TrackerScreen() {
               </View>
 
               <TouchableOpacity
+                style={styles.openVoucherBtn}
+                onPress={() => {
+                  if (selectedApp) handleOpenClaimVoucher(selectedApp);
+                }}
+                activeOpacity={0.85}>
+                <IconSymbol name="qrcode" size={16} color="#FFFFFF" />
+                <Text style={styles.openVoucherBtnText}>View Digital Claim Voucher</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={styles.doneModalBtn}
                 onPress={() => setSelectedApp(null)}
                 activeOpacity={0.85}>
@@ -387,6 +439,13 @@ export function TrackerScreen() {
           ) : null}
         </View>
       </Modal>
+
+      {/* DIGITAL CLAIM VOUCHER MODAL */}
+      <CertificateClaimVoucherModal
+        visible={activeVoucher !== null}
+        onClose={() => setActiveVoucher(null)}
+        voucherData={activeVoucher}
+      />
     </View>
   );
 }

@@ -1,13 +1,42 @@
 import { DomainApplication } from '@/types/domain';
 import { API_BASE_URL } from './auth-service';
+import { CertificateService } from './certificate-service';
 
 export class CivicApiService {
   /**
-   * Fetch Real Citizen Applications from PHP Backend API
-   * Endpoint: https://civentral.tech/api/citizen/get-applications.php
+   * Fetch Real Citizen Applications & Certificate Requests from PHP Backend API
    */
-  static async getApplications(identifier?: string): Promise<DomainApplication[]> {
+  static async getApplications(identifier?: string, citizenUserId?: number | null): Promise<DomainApplication[]> {
     try {
+      const results: DomainApplication[] = [];
+
+      // 1. Fetch real certificate requests from civentral_certificates table
+      try {
+        const certRequests = await CertificateService.getCertificateRequests(citizenUserId, identifier);
+        if (Array.isArray(certRequests) && certRequests.length > 0) {
+          certRequests.forEach((r: any) => {
+            const rawStatus = r.status || 'Pending';
+            let normStatus: 'Under Review' | 'Approved' | 'Completed' | 'Pending' = 'Under Review';
+            if (rawStatus === 'Released' || rawStatus === 'Completed') normStatus = 'Completed';
+            else if (rawStatus === 'Ready for Release' || rawStatus === 'Approved') normStatus = 'Approved';
+            else normStatus = 'Under Review';
+
+            results.push({
+              id: r.reference_no || `CAL-DOC-${r.request_id}`,
+              domainId: 'identity',
+              serviceTitle: r.certificate_type || 'Barangay Certification',
+              applicantId: r.citizen_name || identifier || '',
+              status: normStatus,
+              createdAt: r.created_at ? r.created_at.split(' ')[0] : 'Recent',
+              updatedAt: r.updated_at ? r.updated_at.split(' ')[0] : (r.created_at ? r.created_at.split(' ')[0] : 'Recent'),
+            });
+          });
+        }
+      } catch {}
+
+      if (results.length > 0) {
+        return results;
+      }
       const endpoints = [`${API_BASE_URL}/applications`, `${API_BASE_URL}/get-applications.php`];
       let response: Response | null = null;
       for (const ep of endpoints) {
