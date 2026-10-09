@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -396,7 +396,9 @@ export default function IdIssuanceApplicationScreen() {
       barangay: app.barangay,
       district: app.district,
       emergency_contact: app.emergency_contact_name,
+      emergency_contact_name: app.emergency_contact_name,
       emergency_contact_phone: app.emergency_contact_phone,
+      emergency_contact_relation: app.emergency_contact_relation,
       photo_url: app.photo_2x2_url || app.primary_doc_url,
       photo_2x2_url: app.photo_2x2_url,
       signature_url: app.signature_url,
