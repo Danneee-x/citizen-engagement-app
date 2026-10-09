@@ -602,13 +602,12 @@ export function HomeScreen() {
               vStatus.toLowerCase().includes('approv') ||
               vStatus.toLowerCase().includes('ready')
             ) {
-              bannerBg = "#059669";
-              iconName = "checkmark.seal.fill";
-              bannerTitle = (vStatus || '').toLowerCase().includes('print')
-                ? "Digital ID Ready to Print"
-                : "Verified Citizen Account";
-              bannerSub = `ID: ${verificationData.citizen_id_number || userProfile.citizenId || 'CAL-2026-000004'} • Tap to View Digital ID Card`;
-              targetRoute = "/(auth)/verify-citizen";
+              bannerBg = dm ? "#047857" : "#059669";
+              iconName = "person.crop.circle.fill";
+              bannerTitle = "View Citizen Account";
+              const idNumber = verificationData.citizen_id_number || userProfile.citizenId || 'CAL-2026-000003';
+              bannerSub = `ID: ${idNumber} • Tap to view profile & credentials`;
+              targetRoute = "/(tabs)/profile";
             } else if (vStatus === 'Rejected') {
               bannerBg = "#DC2626";
               iconName = "xmark.circle.fill";
