@@ -75,6 +75,24 @@ export class ConcernService {
   }
 
   /**
+   * Safe JSON parser that recovers from any leading/trailing HTML or warnings
+   */
+  private static parseJsonSafely(text: string): any {
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          return JSON.parse(match[0]);
+        } catch {}
+      }
+    }
+    return null;
+  }
+
+  /**
    * Submits a citizen grievance concern to the backend MySQL database
    */
   public static async submitConcern(
@@ -108,8 +126,10 @@ export class ConcernService {
 
     const candidateEndpoints = [
       `${API_BASE_URL}/submit-concern.php`,
+      'https://citizenship.civentral.tech/api/citizen/submit-concern.php',
       ...(isLocalhost
         ? [
+            'http://localhost/citizen-backend/api/citizen/submit-concern.php',
             'http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php',
             'http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php',
           ]
@@ -136,8 +156,9 @@ export class ConcernService {
         clearTimeout(timeout);
 
         if (res.ok) {
-          const json = await res.json();
-          if (json && (json.status === 'success' || json.ticket_number)) {
+          const rawText = await res.text();
+          const json = this.parseJsonSafely(rawText);
+          if (json && (json.status === 'success' || json.ticket_number || json.data?.ticket_number)) {
             console.log('Successfully filed concern in MySQL database via:', endpoint, json);
             return json as ConcernSubmissionResponse;
           }
@@ -181,8 +202,10 @@ export class ConcernService {
 
     const candidateEndpoints = [
       `${API_BASE_URL}/submit-concern.php${queryStr}`,
+      `https://citizenship.civentral.tech/api/citizen/submit-concern.php${queryStr}`,
       ...(isLocalhost
         ? [
+            `http://localhost/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
             `http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php${queryStr}`,
             `http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php${queryStr}`,
           ]
@@ -201,7 +224,8 @@ export class ConcernService {
         clearTimeout(timeout);
 
         if (res.ok) {
-          const json = await res.json();
+          const rawText = await res.text();
+          const json = this.parseJsonSafely(rawText);
           if (json && json.status === 'success' && Array.isArray(json.recent_submissions)) {
             return json.recent_submissions;
           }

@@ -72,6 +72,7 @@ export class SurveyService {
 
     return [
       `${API_BASE_URL}/${endpointName}`,
+      `https://citizenship.civentral.tech/api/citizen/${endpointName}`,
       ...(isLocalhost
         ? [
             `http://localhost/citizen-information-and-engagement-final-try/api/citizen/${endpointName}`,
@@ -80,6 +81,24 @@ export class SurveyService {
           ]
         : []),
     ];
+  }
+
+  /**
+   * Safe JSON parser that recovers from any leading/trailing HTML or warnings
+   */
+  private static parseJsonSafely(text: string): any {
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        try {
+          return JSON.parse(match[0]);
+        } catch {}
+      }
+    }
+    return null;
   }
 
   /**
@@ -103,7 +122,8 @@ export class SurveyService {
         clearTimeout(timeout);
 
         if (res.ok) {
-          const json = await res.json();
+          const rawText = await res.text();
+          const json = this.parseJsonSafely(rawText);
           if (json && (json.success === true || json.status === 'success') && Array.isArray(json.data)) {
             return json.data as SurveyItem[];
           }
@@ -137,7 +157,8 @@ export class SurveyService {
         clearTimeout(timeout);
 
         if (res.ok) {
-          const json = await res.json();
+          const rawText = await res.text();
+          const json = this.parseJsonSafely(rawText);
           if (json && (json.success === true || json.status === 'success') && Array.isArray(json.data)) {
             return json.data as ConsultationItem[];
           }
@@ -176,7 +197,8 @@ export class SurveyService {
         clearTimeout(timeout);
 
         if (res.ok) {
-          const json = await res.json();
+          const rawText = await res.text();
+          const json = this.parseJsonSafely(rawText);
           if (json && (json.success === true || json.status === 'success')) {
             return {
               success: true,
@@ -224,7 +246,8 @@ export class SurveyService {
         clearTimeout(timeout);
 
         if (res.ok) {
-          const json = await res.json();
+          const rawText = await res.text();
+          const json = this.parseJsonSafely(rawText);
           if (json && (json.success === true || json.status === 'success')) {
             return {
               success: true,
