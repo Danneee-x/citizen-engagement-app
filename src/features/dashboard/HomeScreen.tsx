@@ -193,6 +193,7 @@ export function HomeScreen() {
     useState<AnnouncementItem | null>(null);
   const [failedAnnouncementImages, setFailedAnnouncementImages] = useState<Record<string, boolean>>({});
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
+  const [isAuthGateVisible, setIsAuthGateVisible] = useState(false);
 
   const [verificationData, setVerificationData] = useState<{
     status: 'Not_Submitted' | 'Pending' | 'Under_Review' | 'Returned_For_Correction' | 'Approved' | 'Rejected';
@@ -454,7 +455,12 @@ export function HomeScreen() {
                 let labelText = `Verify\nCitizenship`;
                 let iconName: any = "person.badge.shield.checkmark.fill";
 
-                if (isApproved) {
+                if (isGuestMode) {
+                  badgeColor = "#64748B";
+                  statusText = "Locked";
+                  labelText = `Verify\nCitizenship`;
+                  iconName = "lock.fill";
+                } else if (isApproved) {
                   badgeColor = "#10B981";
                   statusText = "Active";
                   labelText = `Digital\nResident ID`;
@@ -477,7 +483,13 @@ export function HomeScreen() {
                       styles.pillarCard,
                       { backgroundColor: dm ? "#102A43" : "#F0F9FF" },
                     ]}
-                    onPress={() => router.push("/(auth)/verify-citizen")}
+                    onPress={() => {
+                      if (isGuestMode) {
+                        setIsAuthGateVisible(true);
+                        return;
+                      }
+                      router.push("/(auth)/verify-citizen");
+                    }}
                     activeOpacity={0.8}
                     accessibilityRole="button"
                     accessibilityLabel={labelText.replace('\n', ' ')}
@@ -566,7 +578,13 @@ export function HomeScreen() {
             let bannerSub = "Get your citizen account verified";
             let targetRoute: any = "/(auth)/verify-citizen";
 
-            if (vStatus === 'Pending' || vStatus === 'Under_Review') {
+            if (isGuestMode) {
+              bannerBg = dm ? "#0284C7" : "#176B87";
+              iconName = "lock.fill";
+              bannerTitle = "Verify Citizenship";
+              bannerSub = "Sign in to verify your citizen account";
+              targetRoute = null;
+            } else if (vStatus === 'Pending' || vStatus === 'Under_Review') {
               bannerBg = "#D97706";
               iconName = "clock.fill";
               bannerTitle = "Application Under Review";
@@ -606,26 +624,42 @@ export function HomeScreen() {
                   {
                     backgroundColor: bannerBg,
                   },
+                  isGuestMode && { opacity: 0.92 },
                 ]}
-                onPress={() => router.push(targetRoute)}
+                onPress={() => {
+                  if (isGuestMode) {
+                    setIsAuthGateVisible(true);
+                    return;
+                  }
+                  if (targetRoute) {
+                    router.push(targetRoute);
+                  }
+                }}
                 activeOpacity={0.85}
                 accessibilityRole="button"
-                accessibilityLabel={bannerTitle}
+                accessibilityLabel={isGuestMode ? "Verify Citizenship - Login Required" : bannerTitle}
               >
                 <View style={styles.registerNowBannerLeft}>
-                  <View style={styles.registerNowIconBox}>
+                  <View style={[styles.registerNowIconBox, isGuestMode && { backgroundColor: "rgba(255, 255, 255, 0.15)" }]}>
                     <IconSymbol name={iconName} size={20} color="#FFFFFF" />
                   </View>
                   <View style={styles.registerNowTextBlock}>
-                    <Text style={styles.registerNowBannerText}>
-                      {bannerTitle}
-                    </Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.registerNowBannerText}>
+                        {bannerTitle}
+                      </Text>
+                      {isGuestMode && (
+                        <View style={{ backgroundColor: "rgba(255,255,255,0.22)", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ color: "#FFFFFF", fontSize: 9.5, fontWeight: "700", letterSpacing: 0.4 }}>LOGIN REQUIRED</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.registerNowBannerSub} numberOfLines={1}>
                       {bannerSub}
                     </Text>
                   </View>
                 </View>
-                <IconSymbol name="chevron.right" size={16} color="#FFFFFF" />
+                <IconSymbol name={isGuestMode ? "lock.fill" : "chevron.right"} size={16} color="#FFFFFF" />
               </TouchableOpacity>
             );
           })()}
@@ -1158,6 +1192,131 @@ export function HomeScreen() {
               </TouchableOpacity>
             </View>
           ) : null}
+        </View>
+      </Modal>
+      {/* MODAL 3: AUTH GATE FOR VERIFY CITIZENSHIP */}
+      <Modal
+        visible={isAuthGateVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsAuthGateVisible(false)}
+      >
+        <View style={styles.authGateOverlay}>
+          <View
+            style={[
+              styles.authGateCard,
+              dm && {
+                backgroundColor: "#1C2541",
+                borderColor: "#3A506B",
+                borderWidth: 1,
+              },
+            ]}
+          >
+            {/* Icon Ring */}
+            <View
+              style={[
+                styles.authGateIconRing,
+                dm && { backgroundColor: "#0F2942" },
+              ]}
+            >
+              <IconSymbol
+                name="lock.shield.fill"
+                size={34}
+                color={dm ? "#38BDF8" : "#165B7E"}
+              />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.authGateTitle, dm && { color: "#F8FAFC" }]}>
+              Sign In Required
+            </Text>
+            <Text style={[styles.authGateSub, dm && { color: "#CBD5E1" }]}>
+              Citizen verification binds official government civil records and your digital citizen ID to your account. Please sign in or register to verify your citizenship.
+            </Text>
+
+            {/* Divider with city branding */}
+            <View style={styles.authGateBrandRow}>
+              <View
+                style={[
+                  styles.authGateBrandLine,
+                  dm && { backgroundColor: "#3A506B" },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.authGateBrandText,
+                  dm && { color: "#94A3B8" },
+                ]}
+              >
+                CALOOCAN CITY GOVERNMENT
+              </Text>
+              <View
+                style={[
+                  styles.authGateBrandLine,
+                  dm && { backgroundColor: "#3A506B" },
+                ]}
+              />
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.authGateActions}>
+              <TouchableOpacity
+                style={styles.authGateLoginBtn}
+                onPress={() => {
+                  setIsAuthGateVisible(false);
+                  router.push("/(auth)" as any);
+                }}
+                activeOpacity={0.88}
+              >
+                <IconSymbol name="person.fill" size={16} color="#FFFFFF" />
+                <Text style={styles.authGateLoginText}>
+                  Sign In to My Account
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.authGateRegisterBtn}
+                onPress={() => {
+                  setIsAuthGateVisible(false);
+                  router.push("/(auth)/register" as any);
+                }}
+                activeOpacity={0.88}
+              >
+                <IconSymbol name="person.badge.plus" size={16} color="#165B7E" />
+                <Text style={styles.authGateRegisterText}>
+                  Create New Account
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.authGateCancelBtn}
+                onPress={() => setIsAuthGateVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.authGateCancelText,
+                    dm && { color: "#94A3B8" },
+                  ]}
+                >
+                  Continue Browsing as Guest
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Footer */}
+            <View style={styles.authGateFooter}>
+              <IconSymbol name="shield.fill" size={11} color="#94A3B8" />
+              <Text
+                style={[
+                  styles.authGateFooterText,
+                  dm && { color: "#94A3B8" },
+                ]}
+              >
+                {" "}Protected by Caloocan City E-Governance Portal
+              </Text>
+            </View>
+          </View>
         </View>
       </Modal>
     </View>

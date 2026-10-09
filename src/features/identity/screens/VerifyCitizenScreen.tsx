@@ -324,56 +324,11 @@ export function VerifyCitizenScreen() {
   const [isPrefilled, setIsPrefilled] = useState(false);
 
   // Status Guarding & Persistent State
+  const currentUser = AuthService.getCurrentUser();
+  const isGuestUser = AuthService.isGuestMode() || (!currentUser.email && !currentUser.citizen_user_id);
   const [appStatus, setAppStatus] = useState<string | null>(null);
   const [appData, setAppData] = useState<any | null>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState<boolean>(true);
-
-  // Auto-fetch Citizen basic info from registered account & database
-  useEffect(() => {
-    async function loadCitizenData() {
-      try {
-        const currentUser = AuthService.getCurrentUser();
-
-        // 1. Pre-fill from active auth session if present
-        if (currentUser && currentUser.user) {
-          const u = currentUser.user;
-          if (u.first_name) setFirstName(sanitizePersonalName(u.first_name));
-          if (u.middle_name) setMiddleName(sanitizePersonalName(u.middle_name));
-          if (u.last_name) setLastName(sanitizePersonalName(u.last_name));
-          if (u.suffix) setSuffix(sanitizePersonalName(u.suffix));
-          setIsPrefilled(true);
-        }
-
-        // 2. Fetch fresh profile details from DB via ProfileService
-        if (currentUser.email || currentUser.citizen_user_id || currentUser.phone) {
-          const res = await ProfileService.getProfile(
-            currentUser.email || undefined,
-            currentUser.citizen_user_id || undefined,
-            currentUser.phone || undefined
-          );
-
-          if (res.status === 'success' && res.data) {
-            const p = res.data;
-            if (p.first_name) setFirstName(sanitizePersonalName(p.first_name));
-            if (p.middle_name) setMiddleName(sanitizePersonalName(p.middle_name));
-            if (p.last_name) setLastName(sanitizePersonalName(p.last_name));
-            if (p.suffix) setSuffix(sanitizePersonalName(p.suffix));
-            if (p.birthDate) setBirthDate(p.birthDate);
-            if (p.civilStatus && CIVIL_STATUS_OPTIONS.includes(p.civilStatus)) {
-              setCivilStatus(p.civilStatus);
-            }
-            if (p.barangay) setBarangay(p.barangay);
-            if (p.address) setStreetAddress(p.address);
-            setIsPrefilled(true);
-          }
-        }
-      } catch (err) {
-        console.warn('Could not auto-fetch citizen registration info:', err);
-      }
-    }
-
-    loadCitizenData();
-  }, []);
+  const [isLoadingStatus, setIsLoadingStatus] = useState<boolean>(!isGuestUser);
 
   // STEP 2: Residency State (Caloocan District & Cascading Barangay)
   const [selectedDistrictId, setSelectedDistrictId] = useState(CALOOCAN_DISTRICTS[0].id);
@@ -1047,6 +1002,10 @@ export function VerifyCitizenScreen() {
   // Auto-fetch Citizen basic info and verify existing application status
   useEffect(() => {
     async function loadCitizenData() {
+      if (AuthService.isGuestMode() || (!currentUser.email && !currentUser.citizen_user_id)) {
+        setIsLoadingStatus(false);
+        return;
+      }
       try {
         setIsLoadingStatus(true);
         const currentUser = AuthService.getCurrentUser();
@@ -1441,6 +1400,18 @@ export function VerifyCitizenScreen() {
 
   const handleSubmitVerification = async () => {
     setErrorMessage(null);
+    if (AuthService.isGuestMode() || (!currentUser.email && !currentUser.citizen_user_id)) {
+      setErrorMessage('You must be signed in to submit citizen verification.');
+      Alert.alert(
+        'Account Required',
+        'You need to log in to your citizen account before submitting citizenship verification.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Sign In / Register', onPress: () => router.push('/(auth)' as any) },
+        ]
+      );
+      return;
+    }
     if (!idNumber.trim()) {
       setErrorMessage('Government ID number is required.');
       return;
@@ -1669,6 +1640,60 @@ export function VerifyCitizenScreen() {
               <Text style={[styles.guardSubtitle, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>
                 Connecting to Caloocan Civil & Barangay Registry database
               </Text>
+            </View>
+          ) : isGuestUser ? (
+            /* GUARD: GUEST / UNAUTHENTICATED USER */
+            <View style={[styles.card, styles.guardCard, { backgroundColor: dmCard, borderColor: isDarkMode ? '#3A506B' : '#E2E8F0', paddingVertical: 32 }]}>
+              <View style={[styles.guardIconBox, { backgroundColor: isDarkMode ? '#0F2942' : '#EFF6FF', width: 72, height: 72, borderRadius: 36, marginBottom: 16 }]}>
+                <IconSymbol name="lock.shield.fill" size={36} color={isDarkMode ? '#38BDF8' : '#165B7E'} />
+              </View>
+              <Text style={[styles.guardTitle, { color: dmText, fontSize: 20 }]}>Sign In Required</Text>
+              <Text style={[styles.guardSubtitle, { color: isDarkMode ? '#CBD5E1' : '#64748B', lineHeight: 21, marginBottom: 20, paddingHorizontal: 8 }]}>
+                Citizen verification is only accessible to registered Caloocan City accounts. You cannot submit government credentials or biometrics as a guest. Please sign in or create an account to verify your citizenship.
+              </Text>
+
+              <View style={[styles.guardDetailsBox, { backgroundColor: isDarkMode ? '#152238' : '#F8FAFC', borderColor: dmBorder, marginBottom: 24, width: '100%' }]}>
+                <View style={[styles.guardRow, { borderBottomColor: dmBorder }]}>
+                  <Text style={[styles.guardRowLabel, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>Account State</Text>
+                  <View style={{ backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ color: '#475569', fontWeight: '800', fontSize: 11 }}>GUEST / NOT LOGGED IN</Text>
+                  </View>
+                </View>
+                <View style={[styles.guardRow, { borderBottomColor: 'transparent' }]}>
+                  <Text style={[styles.guardRowLabel, { color: isDarkMode ? '#94A3B8' : '#64748B' }]}>Requirement</Text>
+                  <Text style={[styles.guardRowValue, { color: dmText }]}>Registered Citizen Account</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { width: '100%', marginBottom: 12, backgroundColor: '#165B7E' }]}
+                onPress={() => router.push('/(auth)' as any)}
+                activeOpacity={0.85}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <IconSymbol name="person.fill" size={16} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonText}>Sign In to My Account</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.primaryButton, { width: '100%', marginBottom: 12, backgroundColor: isDarkMode ? '#1C2541' : '#EFF6FF', borderWidth: 1.5, borderColor: isDarkMode ? '#38BDF8' : '#BFDBFE' }]}
+                onPress={() => router.push('/(auth)/register' as any)}
+                activeOpacity={0.85}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                  <IconSymbol name="person.badge.plus" size={16} color={isDarkMode ? '#38BDF8' : '#165B7E'} />
+                  <Text style={[styles.primaryButtonText, { color: isDarkMode ? '#38BDF8' : '#165B7E' }]}>Create New Account</Text>
+                </View>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.secondaryButton, { width: '100%' }, isDarkMode && { backgroundColor: '#152238', borderColor: dmBorder }]}
+                onPress={() => router.replace('/(tabs)')}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.secondaryButtonText, isDarkMode && { color: '#CBD5E1' }]}>Back to Home</Text>
+              </TouchableOpacity>
             </View>
           ) : ((appStatus === 'Pending' || appStatus === 'Under_Review') && appData) ? (
             /* GUARD: APPLICATION UNDER REVIEW */
