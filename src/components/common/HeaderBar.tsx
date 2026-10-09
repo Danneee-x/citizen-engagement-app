@@ -30,48 +30,52 @@ export function HeaderBar({
         },
       ]}
     >
-      {/* Left: Logo + App Name + Subtitle */}
-      <View style={styles.leftBrand}>
-        <Image
-          source={require("@/assets/images/logo.png")}
-          style={styles.logoImage}
-          resizeMode="contain"
-        />
-        <View style={styles.textStack}>
-          <Text style={[styles.brandTitle, isDarkMode && { color: "#38BDF8" }]}>
-            Civentral
-          </Text>
-          <Text
-            style={[styles.brandSubtitle, isDarkMode && { color: "#CBD5E1" }]}
-          >
-            {subtitle}
-          </Text>
-        </View>
-      </View>
-
-      {/* Right: Bell Notification with Red Badge */}
-      <TouchableOpacity
-        style={[
-          styles.notificationBtn,
-          isDarkMode && { backgroundColor: "#0B132B" },
-        ]}
-        onPress={onNotificationPress}
-        activeOpacity={0.7}
-      >
-        <IconSymbol
-          name="bell.fill"
-          size={22}
-          color={isDarkMode ? "#38BDF8" : "#176B87"}
-        />
-        {hasUnreadNotifications && (
-          <View
-            style={[
-              styles.redBadgeDot,
-              isDarkMode && { borderColor: "#1C2541" },
-            ]}
+      <View style={styles.innerWrapper}>
+        {/* Left: Logo + App Name + Subtitle */}
+        <View style={styles.leftBrand}>
+          <Image
+            source={require("@/assets/images/logo.png")}
+            style={styles.logoImage}
+            resizeMode="contain"
           />
-        )}
-      </TouchableOpacity>
+          <View style={styles.textStack}>
+            <Text style={[styles.brandTitle, isDarkMode && { color: "#38BDF8" }]}>
+              Civentral
+            </Text>
+            <Text
+              style={[styles.brandSubtitle, isDarkMode && { color: "#CBD5E1" }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              {subtitle}
+            </Text>
+          </View>
+        </View>
+
+        {/* Right: Bell Notification with Red Badge */}
+        <TouchableOpacity
+          style={[
+            styles.notificationBtn,
+            isDarkMode && { backgroundColor: "#0B132B" },
+          ]}
+          onPress={onNotificationPress}
+          activeOpacity={0.7}
+        >
+          <IconSymbol
+            name="bell.fill"
+            size={22}
+            color={isDarkMode ? "#38BDF8" : "#176B87"}
+          />
+          {hasUnreadNotifications && (
+            <View
+              style={[
+                styles.redBadgeDot,
+                isDarkMode && { borderColor: "#1C2541" },
+              ]}
+            />
+          )}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -79,17 +83,25 @@ export function HeaderBar({
 const styles = StyleSheet.create({
   headerContainer: {
     backgroundColor: "#FFFFFF",
-    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
+    width: "100%",
+  },
+  innerWrapper: {
+    width: "100%",
+    maxWidth: 680,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   leftBrand: {
     flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+    marginRight: 10,
   },
   logoImage: {
     width: 36,
@@ -97,6 +109,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   textStack: {
+    flex: 1,
     justifyContent: "center",
   },
   brandTitle: {

@@ -2,7 +2,8 @@ import { IconSymbol } from "@/src/components/ui/icon-symbol";
 import { useTheme } from "@/src/context/ThemeContext";
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export function CustomTabBar({
   state,
@@ -10,6 +11,14 @@ export function CustomTabBar({
   navigation,
 }: BottomTabBarProps) {
   const { isDarkMode } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+
+  // Responsive floating pill dimensions
+  const maxBarWidth = 520;
+  const barWidth = Math.min(windowWidth - 32, maxBarWidth);
+  const leftPosition = Math.max((windowWidth - barWidth) / 2, 16);
+  const bottomPosition = Math.max(insets.bottom + 8, 20);
 
   // Only display the 5 main tabs (Home, Services, SOS, Tracker, Profile)
   const validTabNames = ["index", "services", "sos", "tracker", "profile"];
@@ -21,6 +30,12 @@ export function CustomTabBar({
     <View
       style={[
         styles.container,
+        {
+          width: barWidth,
+          left: leftPosition,
+          right: "auto",
+          bottom: bottomPosition,
+        },
         isDarkMode && { backgroundColor: "#1C2541", borderColor: "#3A506B" },
       ]}
     >
@@ -115,9 +130,6 @@ export function CustomTabBar({
 const styles = StyleSheet.create({
   container: {
     position: "absolute",
-    bottom: 24,
-    left: 16,
-    right: 16,
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",

@@ -11,7 +11,7 @@ export default function EmergencyIndexRoute() {
   );
 }
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 110 },
+  container: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 130, width: '100%', maxWidth: 680, alignSelf: 'center' },
   content: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 30, minHeight: 300, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#E2E8F0' },
   title: { fontSize: 18, fontWeight: '800', color: '#0F172A', marginBottom: 6 },
   sub: { fontSize: 13, color: '#64748B', textAlign: 'center' },

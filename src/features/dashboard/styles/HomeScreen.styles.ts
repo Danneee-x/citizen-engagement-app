@@ -8,17 +8,22 @@ export const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 0,
     paddingTop: 0,
-    paddingBottom: 110,
+    paddingBottom: 130,
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
   },
   heroContainer: {
     width: "100%",
     height: 190,
     overflow: "hidden",
+    alignItems: "center",
   },
   heroBackground: {
     width: "100%",
     height: "100%",
     justifyContent: "flex-start",
+    alignItems: "center",
   },
   heroImageStyle: {
     opacity: 0.95,
@@ -26,6 +31,9 @@ export const styles = StyleSheet.create({
   heroOverlay: {
     paddingTop: Platform.OS === "android" ? 18 : 14,
     paddingHorizontal: 20,
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
   },
   heroGreetingText: {
     fontSize: 22,
@@ -83,6 +91,9 @@ export const styles = StyleSheet.create({
   },
   bodyContent: {
     paddingHorizontal: 16,
+    width: "100%",
+    maxWidth: 680,
+    alignSelf: "center",
   },
   civicCard: {
     borderRadius: 24,
@@ -456,6 +467,7 @@ export const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     width: "100%",
+    maxWidth: 480,
     alignItems: "center",
   },
   announcementModalContainer: {
@@ -463,6 +475,8 @@ export const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     width: "100%",
+    maxWidth: 540,
+    maxHeight: "88%",
   },
   qrModalHeader: {
     width: "100%",

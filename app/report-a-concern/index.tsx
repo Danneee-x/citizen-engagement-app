@@ -912,7 +912,7 @@ export default function ReportConcernScreen() {
                   </View>
 
                   <View style={styles.rowInputs}>
-                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <View style={[styles.inputGroup, { flex: 1, minWidth: 140 }]}>
                       <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
                         Mobile Number
                       </Text>
@@ -930,7 +930,7 @@ export default function ReportConcernScreen() {
                       />
                     </View>
 
-                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <View style={[styles.inputGroup, { flex: 1, minWidth: 140 }]}>
                       <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
                         Email Address
                       </Text>
@@ -1610,7 +1610,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 130,
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
   },
   backButton: {
     flexDirection: 'row',
@@ -1996,6 +1999,7 @@ const styles = StyleSheet.create({
   },
   rowInputs: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
   },
 
@@ -2401,6 +2405,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '90%',
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
     padding: 20,
     borderWidth: 1,
     borderColor: '#E2E8F0',
@@ -2613,6 +2620,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
     borderWidth: 1,
     borderColor: '#E2E8F0',
   },

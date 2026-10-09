@@ -8,7 +8,10 @@ export const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 110,
+    paddingBottom: 130,
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
   },
   headerContainer: {
     marginBottom: 16,
@@ -256,6 +259,8 @@ export const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     width: '100%',
+    maxWidth: 520,
+    maxHeight: '88%',
   },
   modalHeaderRow: {
     flexDirection: 'row',
