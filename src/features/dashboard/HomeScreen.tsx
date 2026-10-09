@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
+    Image,
     ImageBackground,
     Modal,
     Platform,
@@ -33,6 +34,7 @@ export interface AnnouncementItem {
   summary: string;
   fullBody: string;
   department: string;
+  attachmentUrl?: string | null;
 }
 
 interface ActivityItem {
@@ -214,6 +216,7 @@ export function HomeScreen() {
             summary: a.body.length > 130 ? a.body.slice(0, 130) + '...' : a.body,
             fullBody: a.bodyHtml || a.body,
             department: a.sender || 'Caloocan Public Information Office',
+            attachmentUrl: a.attachmentUrl || null,
           };
         });
         setAnnouncements(mapped);
@@ -1102,7 +1105,21 @@ export function HomeScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              <ScrollView style={{ maxHeight: 380, marginVertical: 12 }}>
+              <ScrollView style={{ maxHeight: 420, marginVertical: 12 }}>
+                {selectedAnnouncement.attachmentUrl && !selectedAnnouncement.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                  <View
+                    style={[
+                      styles.ancModalImageContainer,
+                      dm && { borderColor: "#3A506B", backgroundColor: "#0B132B" },
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: selectedAnnouncement.attachmentUrl }}
+                      style={styles.ancModalImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                ) : null}
                 <Text
                   style={[styles.ancModalTitle, dm && { color: "#F8FAFC" }]}
                 >

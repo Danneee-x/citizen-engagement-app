@@ -550,4 +550,18 @@ export const styles = StyleSheet.create({
     color: "#334155",
     lineHeight: 20,
   },
+  ancModalImageContainer: {
+    width: "100%",
+    height: 180,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 12,
+  },
+  ancModalImage: {
+    width: "100%",
+    height: "100%",
+  },
 });

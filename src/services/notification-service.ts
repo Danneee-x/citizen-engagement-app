@@ -16,6 +16,21 @@ export interface CivicAlert {
   isRead: boolean;
 }
 
+function resolveAttachmentUrl(rawUrl?: string | null): string | null {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return null;
+
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    // If it points to api-citizen subdomain, static assets are hosted on main web domain
+    return trimmed.replace('api-citizen.civentral.tech', 'civentral.tech');
+  }
+
+  // Handle relative paths like 'assets/uploads/...' or '/assets/uploads/...'
+  const cleanPath = trimmed.replace(/^\/+/, '');
+  return `https://civentral.tech/${cleanPath}`;
+}
+
 export class NotificationService {
   /**
    * Fetch Real Citizen Notifications from PHP Backend API
@@ -62,7 +77,7 @@ export class NotificationService {
               timestamp: item.timestamp || 'Just now',
               createdAt: item.createdAt,
               sender: item.sender || 'Caloocan Public Information Office',
-              attachmentUrl: item.attachmentUrl || null,
+              attachmentUrl: resolveAttachmentUrl(item.attachmentUrl || item.rawAttachment),
               isRead: Boolean(item.isRead),
             }));
           }

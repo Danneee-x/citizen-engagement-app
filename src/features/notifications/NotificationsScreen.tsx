@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Platform,
   RefreshControl,
@@ -165,6 +166,22 @@ export function NotificationsScreen() {
                     {item.body}
                   </Text>
 
+                  {/* Attachment Preview (Image or Document) */}
+                  {item.attachmentUrl && !item.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                    <View style={[styles.cardImageContainer, isDarkMode && { borderColor: '#3A506B', backgroundColor: '#0B132B' }]}>
+                      <Image
+                        source={{ uri: item.attachmentUrl }}
+                        style={styles.cardImage}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  ) : item.attachmentUrl && item.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                    <View style={[styles.cardPdfAttachment, isDarkMode && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
+                      <IconSymbol name="doc.text.fill" size={13} color="#EF4444" />
+                      <Text style={[styles.cardPdfText, isDarkMode && { color: '#FCA5A5' }]}>PDF Document Attached</Text>
+                    </View>
+                  ) : null}
+
                   {/* Card Footer: Sender & Tap Hint */}
                   <View style={styles.cardFooter}>
                     <Text style={[styles.senderText, isDarkMode && { color: '#64748B' }]}>
@@ -221,8 +238,26 @@ export function NotificationsScreen() {
                 <Text style={[styles.modalMetaText, isDarkMode && { color: '#94A3B8' }]}>{selectedAlert.timestamp}</Text>
               </View>
 
-              {/* Body Content */}
+              {/* Body Content & Image Attachment */}
               <ScrollView style={styles.modalBodyScroll} showsVerticalScrollIndicator={false}>
+                {selectedAlert.attachmentUrl && !selectedAlert.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                  <View style={[styles.modalImageContainer, isDarkMode && { borderColor: '#3A506B', backgroundColor: '#0B132B' }]}>
+                    <Image
+                      source={{ uri: selectedAlert.attachmentUrl }}
+                      style={styles.modalImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                ) : selectedAlert.attachmentUrl && selectedAlert.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                  <View style={[styles.modalPdfContainer, isDarkMode && { backgroundColor: '#1E293B', borderColor: '#334155' }]}>
+                    <IconSymbol name="doc.text.fill" size={20} color="#EF4444" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.modalPdfTitle, isDarkMode && { color: '#F8FAFC' }]}>PDF Document Attached</Text>
+                      <Text style={[styles.modalPdfSubtitle, isDarkMode && { color: '#94A3B8' }]}>Official document included with this municipal bulletin</Text>
+                    </View>
+                  </View>
+                ) : null}
+
                 <Text style={[styles.modalBodyText, isDarkMode && { color: '#E2E8F0' }]}>
                   {selectedAlert.body}
                 </Text>
@@ -504,13 +539,80 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   modalBodyScroll: {
-    maxHeight: 240,
+    maxHeight: 360,
     marginBottom: 16,
   },
   modalBodyText: {
     fontSize: 13,
     color: '#334155',
     lineHeight: 20,
+  },
+  cardImageContainer: {
+    marginTop: 10,
+    width: '100%',
+    height: 140,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardPdfAttachment: {
+    marginTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    alignSelf: 'flex-start',
+  },
+  cardPdfText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#991B1B',
+  },
+  modalImageContainer: {
+    width: '100%',
+    height: 200,
+    borderRadius: 14,
+    overflow: 'hidden',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 14,
+  },
+  modalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  modalPdfContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    marginBottom: 14,
+  },
+  modalPdfTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  modalPdfSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
   },
   modalFooter: {
     paddingTop: 10,
