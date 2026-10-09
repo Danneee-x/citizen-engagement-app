@@ -99,32 +99,29 @@ export class CertificateService {
       uploaded_documents: processedDocs,
     };
 
-    // 2. Candidate Endpoints with Multi-Network Fallback
+    // 2. Candidate Endpoints (Production API Always First)
     const isLocalhost =
       Platform.OS === 'web' &&
       typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    const candidateEndpoints = isLocalhost
-      ? [
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          'http://localhost/citizen-backend/api/citizen/request-certificate.php',
-          'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          `${API_BASE_URL}/request-certificate.php`,
-        ]
-      : [
-          `${API_BASE_URL}/request-certificate.php`,
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          'http://10.0.2.2/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          'http://192.168.100.15/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          'http://localhost/citizen-backend/api/citizen/request-certificate.php',
-        ];
+    const candidateEndpoints = [
+      `${API_BASE_URL}/request-certificate.php`,
+      ...(isLocalhost
+        ? [
+            'http://localhost/citizen-information-and-engagement-final-try/api/citizen/request-certificate.php',
+            'http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/request-certificate.php',
+          ]
+        : []),
+    ];
+
+    let lastError = 'Failed to connect to certificate request server.';
 
     // 3. Attempt endpoint transmission
     for (const endpoint of candidateEndpoints) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 9000);
+        const timeout = setTimeout(() => controller.abort(), 35000);
 
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -150,41 +147,13 @@ export class CertificateService {
       }
     }
 
-    // 4. Offline Fallback
-    console.warn('All candidate certificate endpoints unreachable, generating offline reference.');
-    const now = new Date();
-    const dateStr =
-      now.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }) + ` • ` + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-    const ref = `CAL-DOC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const fallbackResult: CertificateSubmissionResponse = {
-      status: 'success',
-      data: {
-        request_id: Date.now(),
-        reference_no: ref,
-        certificate_type: payload.certificate_type,
-        applicant_name: payload.applicant_name,
-        barangay: payload.barangay,
-        status: 'Pending',
-        fee_amount: payload.certificate_type.includes('Indigency') ? '0.00' : '50.00',
-        payment_status: payload.certificate_type.includes('Indigency') ? 'Waived' : 'Pending',
-        submission_date: dateStr,
-        pickup_location: `${payload.barangay} Barangay Hall - Document & Clearance Counter`,
-      },
-    };
-    CertificateService.localRequestsCache.unshift(fallbackResult.data);
-    return fallbackResult;
+    throw new Error(lastError);
   }
 
   public static localRequestsCache: CertificateSubmissionResponse['data'][] = [];
 
   /**
-   * Fetches the current citizen's submitted certificate requests
+   * Retrieves previously requested certificates
    */
   public static async getCertificateRequests(
     citizenUserId?: number,
@@ -207,7 +176,7 @@ export class CertificateService {
     for (const ep of candidateEndpoints) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6000);
+        const timeout = setTimeout(() => controller.abort(), 15000);
         const res = await fetch(ep, {
           method: 'GET',
           headers: { Accept: 'application/json' },

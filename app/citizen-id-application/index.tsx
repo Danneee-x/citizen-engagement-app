@@ -1145,9 +1145,17 @@ export default function IdIssuanceApplicationScreen() {
     };
 
     try {
-      await IdIssuanceService.submitApplication(payload);
-    } catch (err) {
+      const submitRes = await IdIssuanceService.submitApplication(payload);
+      if (!submitRes.success) {
+        setIsSubmitting(false);
+        Alert.alert('Submission Error', submitRes.message || 'Could not submit ID application. Please check your connection and try again.');
+        return;
+      }
+    } catch (err: any) {
       console.warn('ID Application live submission error:', err);
+      setIsSubmitting(false);
+      Alert.alert('Submission Error', err?.message || 'Failed to submit ID application. Please try again.');
+      return;
     }
 
     setIsSubmitting(false);

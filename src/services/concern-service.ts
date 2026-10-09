@@ -106,26 +106,23 @@ export class ConcernService {
       typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    const candidateEndpoints = isLocalhost
-      ? [
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php',
-          'http://localhost/citizen-backend/api/citizen/submit-concern.php',
-          'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php',
-          `${API_BASE_URL}/submit-concern.php`,
-        ]
-      : [
-          `${API_BASE_URL}/submit-concern.php`,
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php',
-          'http://10.0.2.2/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php',
-          'http://192.168.100.15/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php',
-          'http://localhost/citizen-backend/api/citizen/submit-concern.php',
-        ];
+    const candidateEndpoints = [
+      `${API_BASE_URL}/submit-concern.php`,
+      ...(isLocalhost
+        ? [
+            'http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php',
+            'http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php',
+          ]
+        : []),
+    ];
+
+    let lastError = 'Failed to connect to the concern submission server.';
 
     // 3. Attempt endpoint transmission
     for (const endpoint of candidateEndpoints) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 9000);
+        const timeout = setTimeout(() => controller.abort(), 35000);
 
         const res = await fetch(endpoint, {
           method: 'POST',
@@ -140,155 +137,22 @@ export class ConcernService {
 
         if (res.ok) {
           const json = await res.json();
-          if (json && json.status === 'success' && json.ticket_number) {
+          if (json && (json.status === 'success' || json.ticket_number)) {
             console.log('Successfully filed concern in MySQL database via:', endpoint, json);
             return json as ConcernSubmissionResponse;
           }
+          if (json && json.message) {
+            lastError = json.message;
+          }
+        } else {
+          lastError = `Server returned status ${res.status}`;
         }
-      } catch (err) {
-        // Try next candidate endpoint
+      } catch (err: any) {
+        lastError = err?.message || 'Network timeout or connection failed';
       }
     }
 
-    // 4. Offline Fallback: If no server reachable, generate local fallback ticket
-    console.warn('All candidate endpoints unreachable, generating offline local ticket fallback.');
-    const now = new Date();
-    const dateStr =
-      now.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }) + ` • ` + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-
-    const ref = `CAL-REP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    const textCombo = (payload.title + ' ' + payload.description + ' ' + payload.category).toLowerCase();
-
-    let detectedCategory = payload.category;
-    let priority = 'Medium';
-    let recommendedDepartment = 'Citizenship Information & Engagement (CIE)';
-    let confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-    let similarConcerns = 'No duplicate reports found';
-
-    if (
-      textCombo.includes('garbage') ||
-      textCombo.includes('waste') ||
-      textCombo.includes('trash') ||
-      textCombo.includes('sanitation') ||
-      payload.category === 'Garbage & Waste'
-    ) {
-      detectedCategory = 'Garbage & Sanitation Management';
-      priority = 'Medium';
-      recommendedDepartment = 'Health & Sanitation Management (HSM)';
-      confidenceScore = '97% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('road') ||
-      textCombo.includes('pothole') ||
-      textCombo.includes('bridge') ||
-      textCombo.includes('streetlights') ||
-      textCombo.includes('light') ||
-      payload.category === 'Road & Infrastructure'
-    ) {
-      detectedCategory = 'Public Assets & Facilities Repairs';
-      priority = textCombo.includes('light') ? 'Medium' : 'High';
-      recommendedDepartment = 'Public Assets & Facilities Management (PAFM)';
-      confidenceScore = '98% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('flood') ||
-      textCombo.includes('drain') ||
-      textCombo.includes('canal') ||
-      payload.category === 'Flooding & Drainage'
-    ) {
-      detectedCategory = 'Flooding & Drainage Emergency';
-      priority = 'Urgent';
-      recommendedDepartment = 'Disaster Risk Reduction & Emergency Response (DRRM)';
-      confidenceScore = '96% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('traffic') ||
-      textCombo.includes('parking') ||
-      textCombo.includes('safety') ||
-      textCombo.includes('police') ||
-      textCombo.includes('disturbance') ||
-      payload.category === 'Public Safety'
-    ) {
-      detectedCategory = 'Transport & Public Safety';
-      priority = textCombo.includes('police') ? 'Urgent' : 'High';
-      recommendedDepartment = 'Transport & Mobility Management (TMM)';
-      confidenceScore = '99% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('indigent') ||
-      textCombo.includes('burial') ||
-      textCombo.includes('senior') ||
-      textCombo.includes('welfare') ||
-      textCombo.includes('solo parent')
-    ) {
-      detectedCategory = 'Social Welfare & Community Assistance';
-      priority = 'Medium';
-      recommendedDepartment = 'Social Services Management (SSM)';
-      confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('permit') ||
-      textCombo.includes('license') ||
-      textCombo.includes('business')
-    ) {
-      detectedCategory = 'Permits & Commercial Licensing';
-      priority = 'Medium';
-      recommendedDepartment = 'Permits & Licensing Management (PLM)';
-      confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('zoning') ||
-      textCombo.includes('housing') ||
-      textCombo.includes('building')
-    ) {
-      detectedCategory = 'Urban Planning & Housing Compliance';
-      priority = 'Medium';
-      recommendedDepartment = 'Urban Planning Zoning & Housing (UPZH)';
-      confidenceScore = '94% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('tax') ||
-      textCombo.includes('treasury') ||
-      textCombo.includes('rpt')
-    ) {
-      detectedCategory = 'Municipal Revenue & Treasury';
-      priority = 'Low';
-      recommendedDepartment = 'Revenue Collection & Treasury Services (RCTS)';
-      confidenceScore = '95% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('scholarship') ||
-      textCombo.includes('student') ||
-      textCombo.includes('grant')
-    ) {
-      detectedCategory = 'Education & Scholarships';
-      priority = 'Low';
-      recommendedDepartment = 'Education & Scholarship (ESMS)';
-      confidenceScore = '96% - Gemini AI Multi-Modal Engine';
-    } else if (
-      textCombo.includes('app') ||
-      textCombo.includes('login') ||
-      textCombo.includes('technical') ||
-      textCombo.includes('bug')
-    ) {
-      detectedCategory = 'IT & Technical Support';
-      priority = 'Medium';
-      recommendedDepartment = 'Information Technology Department (IT)';
-      confidenceScore = '98% - Gemini AI Multi-Modal Engine';
-    }
-
-    return {
-      status: 'success',
-      ticket_number: ref,
-      data: {
-        ticket_number: ref,
-        title: payload.title,
-        category: payload.category,
-        status: 'AI Analyzed & Automatically Routed',
-        priority,
-        detected_category: detectedCategory,
-        recommended_department: recommendedDepartment,
-        confidence_score: confidenceScore,
-        similar_concerns: similarConcerns,
-        submission_date: dateStr,
-      },
-    };
+    throw new Error(lastError);
   }
 
   /**
@@ -309,24 +173,20 @@ export class ConcernService {
 
     const queryStr = params.toString() ? `?${params.toString()}` : '';
 
-    const candidateEndpoints = isLocalhost
-      ? [
-          `http://localhost/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
-          `http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php${queryStr}`,
-          `http://127.0.0.1/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
-          `${API_BASE_URL}/submit-concern.php${queryStr}`,
-        ]
-      : [
-          `${API_BASE_URL}/submit-concern.php${queryStr}`,
-          `http://localhost/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
-          `http://192.168.100.15/citizen-backend/api/citizen/submit-concern.php${queryStr}`,
-          `http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-concern.php${queryStr}`,
-        ];
+    const candidateEndpoints = [
+      `${API_BASE_URL}/submit-concern.php${queryStr}`,
+      ...(isLocalhost
+        ? [
+            `http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php${queryStr}`,
+            `http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/submit-concern.php${queryStr}`,
+          ]
+        : []),
+    ];
 
     for (const endpoint of candidateEndpoints) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 7000);
+        const timeout = setTimeout(() => controller.abort(), 15000);
         const res = await fetch(endpoint, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
@@ -347,4 +207,3 @@ export class ConcernService {
     return [];
   }
 }
-

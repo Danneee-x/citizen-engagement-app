@@ -86,22 +86,15 @@ export class IdIssuanceService {
       typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    return isLocalhost
-      ? [
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
-          'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
-          'http://localhost/citizen-backend/api/citizen/submit-id-application.php',
-          'http://127.0.0.1/citizen-backend/api/citizen/submit-id-application.php',
-          `${API_BASE_URL}/submit-id-application.php`,
-        ]
-      : [
-          `${API_BASE_URL}/submit-id-application.php`,
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
-          'http://localhost/citizen-backend/api/citizen/submit-id-application.php',
-          'http://10.0.2.2/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
-          'http://10.0.2.2/citizen-backend/api/citizen/submit-id-application.php',
-          'http://192.168.100.15/citizen-backend/api/citizen/submit-id-application.php',
-        ];
+    return [
+      `${API_BASE_URL}/submit-id-application.php`,
+      ...(isLocalhost
+        ? [
+            'http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-id-application.php',
+            'http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/submit-id-application.php',
+          ]
+        : []),
+    ];
   }
 
   /**
@@ -155,13 +148,60 @@ export class IdIssuanceService {
   /**
    * Transmits a new ID application to the backend
    */
-  public static async submitApplication(payload: SubmitIdApplicationPayload): Promise<boolean> {
+    /**
+   * Converts an image URI (blob: or file:) into a base64 Data URL
+   */
+  private static async uriToBase64(uri: string): Promise<string | null> {
+    if (!uri) return null;
+    if (uri.startsWith('data:image')) return uri;
+
+    try {
+      const res = await fetch(uri);
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            resolve('');
+          }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (err) {
+      console.warn('Could not convert ID photo URI to base64:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Transmits a new ID application to the backend
+   */
+  public static async submitApplication(payload: SubmitIdApplicationPayload): Promise<{ success: boolean; data?: any; message?: string }> {
     const endpoints = this.getCandidateEndpoints();
+    let lastError = 'Failed to connect to the ID application server.';
+
+    // Convert local image URIs (blob: or file:) to base64 so server can save them to disk
+    const processedPayload = { ...payload };
+    if (payload.photo_2x2_url && !payload.photo_2x2_url.startsWith('data:image') && !payload.photo_2x2_url.startsWith('http')) {
+      const b64 = await this.uriToBase64(payload.photo_2x2_url);
+      if (b64) processedPayload.photo_2x2_url = b64;
+    }
+    if (payload.primary_doc_url && !payload.primary_doc_url.startsWith('data:image') && !payload.primary_doc_url.startsWith('http')) {
+      const b64 = await this.uriToBase64(payload.primary_doc_url);
+      if (b64) processedPayload.primary_doc_url = b64;
+    }
+    if (payload.signature_url && !payload.signature_url.startsWith('data:image') && !payload.signature_url.startsWith('http') && payload.signature_url.startsWith('blob:')) {
+      const b64 = await this.uriToBase64(payload.signature_url);
+      if (b64) processedPayload.signature_url = b64;
+    }
 
     for (const ep of endpoints) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
+        const timeout = setTimeout(() => controller.abort(), 35000);
 
         const res = await fetch(ep, {
           method: 'POST',
@@ -169,22 +209,27 @@ export class IdIssuanceService {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
           },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(processedPayload),
           signal: controller.signal,
         });
         clearTimeout(timeout);
 
         if (res.ok) {
           const json = await res.json();
-          if (json && json.status === 'success') {
-            return true;
+          if (json && (json.status === 'success' || json.success === true)) {
+            return { success: true, data: json.data || json };
           }
+          if (json && json.message) {
+            lastError = json.message;
+          }
+        } else {
+          lastError = `Server returned status ${res.status}`;
         }
-      } catch (err) {
-        // Continue to fallback endpoint
+      } catch (err: any) {
+        lastError = err?.message || 'Network timeout or connection failed';
       }
     }
 
-    return false;
+    return { success: false, message: lastError };
   }
 }

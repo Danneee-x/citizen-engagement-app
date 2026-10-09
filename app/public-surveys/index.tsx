@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -128,31 +129,61 @@ export default function PublicSurveysScreen() {
     return list;
   }, [answeredSurveys]);
 
+  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api-citizen.civentral.tech/api/citizen';
+
+  const getCandidateEndpoints = React.useCallback((filename: string): string[] => {
+    const isLocalhost =
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    return [
+      `${API_BASE_URL}/${filename}`,
+      ...(isLocalhost
+        ? [
+            `http://localhost/citizen-information-and-engagement-final-try/api/citizen/${filename}`,
+            `http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/${filename}`,
+            `http://localhost/citizen-backend/api/citizen/${filename}`,
+          ]
+        : []),
+    ];
+  }, [API_BASE_URL]);
+
   const fetchBackendData = React.useCallback(async () => {
-    try {
-      const srvRes = await fetch('http://localhost/citizen-backend/api/citizen/get-surveys.php');
-      const srvJson = await srvRes.json();
-      if (srvJson?.success && Array.isArray(srvJson.data)) {
-        setSurveysList(srvJson.data);
-      } else {
-        setSurveysList([]);
-      }
-    } catch (_) {
-      setSurveysList([]);
+    const surveyEndpoints = getCandidateEndpoints('get-surveys.php');
+    for (const ep of surveyEndpoints) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const srvRes = await fetch(ep, { headers: { Accept: 'application/json' }, signal: controller.signal });
+        clearTimeout(timeout);
+        if (srvRes.ok) {
+          const srvJson = await srvRes.json();
+          if (srvJson?.success && Array.isArray(srvJson.data) && srvJson.data.length > 0) {
+            setSurveysList(srvJson.data);
+            break;
+          }
+        }
+      } catch (_) {}
     }
 
-    try {
-      const consRes = await fetch('http://localhost/citizen-backend/api/citizen/get-consultations.php');
-      const consJson = await consRes.json();
-      if (consJson?.success && Array.isArray(consJson.data)) {
-        setConsultationsList(consJson.data);
-      } else {
-        setConsultationsList([]);
-      }
-    } catch (_) {
-      setConsultationsList([]);
+    const consultEndpoints = getCandidateEndpoints('get-consultations.php');
+    for (const ep of consultEndpoints) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+        const consRes = await fetch(ep, { headers: { Accept: 'application/json' }, signal: controller.signal });
+        clearTimeout(timeout);
+        if (consRes.ok) {
+          const consJson = await consRes.json();
+          if (consJson?.success && Array.isArray(consJson.data) && consJson.data.length > 0) {
+            setConsultationsList(consJson.data);
+            break;
+          }
+        }
+      } catch (_) {}
     }
-  }, []);
+  }, [getCandidateEndpoints]);
 
   React.useEffect(() => {
     fetchBackendData();
@@ -200,18 +231,35 @@ export default function PublicSurveysScreen() {
         }
       }
 
-      await fetch('http://localhost/citizen-backend/api/citizen/submit-survey-response.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          survey_id: activeSurvey.id,
-          answers: answers,
-          citizen_name: 'Verified Citizen',
-          barangay: 'Barangay 178 (Camarin)',
-          overall_rating: overallRating,
-          commentary: commentary,
-        }),
-      }).catch((e) => console.log('Survey submit error:', e));
+      const endpoints = getCandidateEndpoints('submit-survey-response.php');
+      const payload = {
+        survey_id: activeSurvey.id,
+        answers: answers,
+        citizen_name: 'Verified Citizen',
+        barangay: 'Barangay 178 (Camarin)',
+        overall_rating: overallRating,
+        commentary: commentary,
+      };
+
+      for (const ep of endpoints) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 20000);
+          const res = await fetch(ep, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+          if (res.ok) {
+            const json = await res.json();
+            if (json?.success) break;
+          }
+        } catch (e) {
+          console.warn('Survey submit try failed:', ep, e);
+        }
+      }
     } catch (e) {
       console.log('Submit error:', e);
     } finally {
@@ -262,17 +310,34 @@ export default function PublicSurveysScreen() {
     setIsSubmittingConsultation(true);
     try {
       if (activeConsultation) {
-        await fetch('http://localhost/citizen-backend/api/citizen/submit-consultation-feedback.php', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            consultation_id: activeConsultation.id,
-            stance: consultationStance,
-            commentary: consultationComment,
-            citizen_name: 'Verified Citizen',
-            barangay: 'Barangay 176 (Bagong Silang)',
-          }),
-        }).catch((e) => console.log('Consultation submit error:', e));
+        const endpoints = getCandidateEndpoints('submit-consultation-feedback.php');
+        const payload = {
+          consultation_id: activeConsultation.id,
+          stance: consultationStance,
+          commentary: consultationComment,
+          citizen_name: 'Verified Citizen',
+          barangay: 'Barangay 176 (Bagong Silang)',
+        };
+
+        for (const ep of endpoints) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 20000);
+            const res = await fetch(ep, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+              body: JSON.stringify(payload),
+              signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            if (res.ok) {
+              const json = await res.json();
+              if (json?.success) break;
+            }
+          } catch (e) {
+            console.warn('Consultation submit try failed:', ep, e);
+          }
+        }
       }
     } catch (e) {
       console.log('Consultation error:', e);
