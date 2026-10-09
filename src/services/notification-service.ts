@@ -22,17 +22,21 @@ export class NotificationService {
    * Endpoints: Localhost XAMPP or production civentral.tech
    */
   static async getCivicAlerts(identifier?: string): Promise<CivicAlert[]> {
-    const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
-    const hostname = isWeb ? window.location.hostname : 'localhost';
+    const isLocalhost =
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     const candidateEndpoints = [
-      `http://${hostname}/citizen-backend/api/citizen/get-notifications.php`,
-      `http://${hostname}/citizen-information-and-engagement-final-try/api/citizen/get-notifications.php`,
-      `http://localhost/citizen-backend/api/citizen/get-notifications.php`,
-      `http://localhost/citizen-information-and-engagement-final-try/api/citizen/get-notifications.php`,
-      `http://127.0.0.1/citizen-backend/api/citizen/get-notifications.php`,
       `${API_BASE_URL}/get-notifications.php`,
       `${API_BASE_URL}/notifications`,
+      ...(isLocalhost
+        ? [
+            'http://localhost/citizen-backend/api/citizen/get-notifications.php',
+            'http://localhost/citizen-information-and-engagement-final-try/api/citizen/get-notifications.php',
+            'http://127.0.0.1/citizen-backend/api/citizen/get-notifications.php',
+          ]
+        : []),
     ];
 
     for (const ep of candidateEndpoints) {

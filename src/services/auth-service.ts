@@ -11,7 +11,7 @@ export interface AuthApiResponse {
   data?: any;
 }
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://civentral.tech/api/citizen';
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://api-citizen.civentral.tech/api/citizen';
 
 function parseJsonResponse(text: string): { json: any; errorText?: string } {
   if (!text) return { json: null, errorText: 'Empty response from server.' };

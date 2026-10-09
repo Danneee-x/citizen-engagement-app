@@ -102,8 +102,6 @@ export default function ReportConcernScreen() {
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('');
   const [barangay, setBarangay] = useState('');
-  const [isGpsPinned, setIsGpsPinned] = useState(false);
-  const [gpsCoords, setGpsCoords] = useState<string | null>(null);
 
   // Contact Info
   const [contactName, setContactName] = useState('');
@@ -303,16 +301,6 @@ export default function ReportConcernScreen() {
     fetchReports().finally(() => setRefreshing(false));
   }, []);
 
-  const handleToggleGps = () => {
-    if (!isGpsPinned) {
-      setIsGpsPinned(true);
-      setGpsCoords('14.7565° N, 121.0437° E (Caloocan North)');
-    } else {
-      setIsGpsPinned(false);
-      setGpsCoords(null);
-    }
-  };
-
   const handlePickPhoto = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -324,7 +312,8 @@ export default function ReportConcernScreen() {
       setIsUploading(true);
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        quality: 0.8,
+        allowsEditing: false,
+        quality: 0.5,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -374,7 +363,6 @@ export default function ReportConcernScreen() {
         category: selectedCategory,
         location: location.trim(),
         barangay,
-        gps_coordinates: gpsCoords,
         citizen_user_id: session?.citizen_user_id || undefined,
         citizen_name: isAnonymous ? 'Anonymous Resident' : contactName.trim(),
         citizen_phone: isAnonymous ? undefined : contactPhone.trim(),
@@ -411,7 +399,6 @@ export default function ReportConcernScreen() {
           description: description.trim(),
           barangay: barangay || 'Caloocan City',
           address: location.trim(),
-          gpsCoords: gpsCoords || undefined,
           priority: res.data.priority,
           assignedDepartment: res.data.recommended_department,
           aiDetectedCategory: res.data.detected_category,
@@ -543,7 +530,7 @@ export default function ReportConcernScreen() {
             color={isDarkMode ? '#38BDF8' : '#2563EB'}
           />
           <Text style={[styles.backText, isDarkMode && { color: '#38BDF8' }]}>
-            Back to Services Directory
+            Back
           </Text>
         </TouchableOpacity>
 
@@ -756,42 +743,6 @@ export default function ReportConcernScreen() {
                       value={barangay}
                       onChangeText={setBarangay}
                     />
-                  </View>
-
-                  {/* Optional GPS / Location Pin */}
-                  <View style={styles.inputGroup}>
-                    <Text style={[styles.inputLabel, isDarkMode && { color: '#CBD5E1' }]}>
-                      GPS / Location Pin (Optional)
-                    </Text>
-                    <TouchableOpacity
-                      style={[
-                        styles.gpsButton,
-                        isGpsPinned && styles.gpsButtonActive,
-                        isDarkMode && {
-                          backgroundColor: isGpsPinned ? '#0C4A6E' : '#152238',
-                          borderColor: '#3A506B',
-                        },
-                      ]}
-                      onPress={handleToggleGps}
-                      activeOpacity={0.8}
-                    >
-                      <IconSymbol
-                        name={isGpsPinned ? 'checkmark.circle.fill' : 'location.fill'}
-                        size={18}
-                        color={isGpsPinned ? '#0284C7' : (isDarkMode ? '#94A3B8' : '#64748B')}
-                      />
-                      <Text
-                        style={[
-                          styles.gpsButtonText,
-                          isGpsPinned && styles.gpsButtonTextActive,
-                          isDarkMode && !isGpsPinned && { color: '#CBD5E1' },
-                        ]}
-                      >
-                        {isGpsPinned
-                          ? `GPS Attached: ${gpsCoords}`
-                          : 'Pin Current Device GPS Coordinates'}
-                      </Text>
-                    </TouchableOpacity>
                   </View>
 
                   {/* Evidence Uploads */}

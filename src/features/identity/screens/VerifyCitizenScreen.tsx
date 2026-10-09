@@ -1234,14 +1234,10 @@ export function VerifyCitizenScreen() {
         return;
       }
 
-      const aspectVal: [number, number] | undefined =
-        photoPickerTarget === 'photo1x1' ? [1, 1] : photoPickerTarget === 'signature' ? [3, 1] : undefined;
-
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: aspectVal,
-        quality: 0.7,
+        allowsEditing: false,
+        quality: 0.5,
         base64: true,
       });
 
@@ -1275,14 +1271,10 @@ export function VerifyCitizenScreen() {
         return;
       }
 
-      const aspectVal: [number, number] | undefined =
-        photoPickerTarget === 'photo1x1' ? [1, 1] : photoPickerTarget === 'signature' ? [3, 1] : undefined;
-
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: aspectVal,
-        quality: 0.7,
+        allowsEditing: false,
+        quality: 0.5,
         base64: true,
       });
 
@@ -1446,10 +1438,6 @@ export function VerifyCitizenScreen() {
       setErrorMessage('Please upload or capture your official 1x1 applicant photo.');
       return;
     }
-    if (!signatureUri) {
-      setErrorMessage('Please provide your digital applicant signature.');
-      return;
-    }
 
     setIsSubmitting(true);
     try {
@@ -1525,21 +1513,6 @@ export function VerifyCitizenScreen() {
         }
       }
 
-      let finalSignature = signatureUri;
-      if (finalSignature && finalSignature.startsWith('blob:')) {
-        try {
-          const r = await fetch(finalSignature);
-          const b = await r.blob();
-          finalSignature = await new Promise<string>((res) => {
-            const reader = new FileReader();
-            reader.onloadend = () => res(reader.result as string);
-            reader.readAsDataURL(b);
-          });
-        } catch (e) {
-          console.warn('Could not convert blob signature to base64:', e);
-        }
-      }
-
       // 2. Transmit to MySQL citizen_verification database via API
       const payload = {
         citizen_user_id: currentUser.citizen_user_id || undefined,
@@ -1565,7 +1538,7 @@ export function VerifyCitizenScreen() {
         id_front_photo_url: finalIdPhoto || null,
         selfie_photo_url: finalSelfiePhoto || null,
         photo_1x1_url: finalPhoto1x1 || null,
-        signature_photo_url: finalSignature || null,
+        signature_photo_url: null,
       };
 
       const isLocalhost =
@@ -1575,7 +1548,6 @@ export function VerifyCitizenScreen() {
 
       const candidateEndpoints = [
         `${API_BASE_URL}/verify-citizen.php`,
-        'http://192.168.1.5/citizen-backend/api/citizen/verify-citizen.php',
         ...(isLocalhost
           ? [
               'http://localhost/citizen-backend/api/citizen/verify-citizen.php',
@@ -1590,7 +1562,7 @@ export function VerifyCitizenScreen() {
       for (const endpoint of candidateEndpoints) {
         try {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 12000);
+          const timer = setTimeout(() => controller.abort(), 35000);
           const res = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -1656,10 +1628,17 @@ export function VerifyCitizenScreen() {
           <View style={styles.headerRow}>
             <TouchableOpacity
               style={[styles.backButton, isDarkMode && { backgroundColor: '#1C2541' }]}
-              onPress={() => router.replace('/(tabs)' as any)}
+              onPress={() => {
+                if (currentStep > 1) {
+                  setCurrentStep((prev) => (prev - 1) as any);
+                  setErrorMessage(null);
+                } else {
+                  router.back();
+                }
+              }}
               activeOpacity={0.75}
               accessibilityRole="button"
-              accessibilityLabel="Back to Dashboard"
+              accessibilityLabel="Back"
             >
               <IconSymbol name="chevron.left" size={20} color={isDarkMode ? '#FFFFFF' : '#0F172A'} />
             </TouchableOpacity>
@@ -3549,6 +3528,7 @@ export function VerifyCitizenScreen() {
                   placeholderTextColor="#94A3B8"
                   value={idNumber}
                   onChangeText={setIdNumber}
+                  maxLength={25}
                 />
               </View>
 
@@ -3719,66 +3699,6 @@ export function VerifyCitizenScreen() {
                       Plain white background, no eyeglasses, formal or collared attire
                     </Text>
                   </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Digital Applicant Signature */}
-              <View style={styles.inputGroup}>
-                <Text style={[styles.inputLabel, { color: isDarkMode ? '#CBD5E1' : '#334155' }]}>
-                  Digital Applicant Signature
-                </Text>
-
-                {signatureUri ? (
-                  <View style={[styles.photoPreviewCard, isDarkMode && { backgroundColor: '#1C2541', borderColor: '#10B981' }]}>
-                    <View style={styles.signaturePreviewBox}>
-                      <Image source={{ uri: signatureUri }} style={styles.signatureImage} resizeMode="contain" />
-                    </View>
-                    <View style={[styles.photoPreviewFooter, isDarkMode && { backgroundColor: '#152238', borderTopColor: '#1C2541' }]}>
-                      <View style={styles.photoStatusBadge}>
-                        <IconSymbol name="checkmark.circle.fill" size={16} color="#10B981" />
-                        <Text style={styles.photoStatusText}>Signature Attached</Text>
-                      </View>
-                      <View style={styles.photoActionsRow}>
-                        <TouchableOpacity
-                          style={[styles.photoActionBtn, isDarkMode && { backgroundColor: '#1E293B', borderColor: '#334155' }]}
-                          onPress={() => handleOpenPhotoPicker('signature')}
-                          activeOpacity={0.75}
-                        >
-                          <Text style={styles.photoActionBtnText}>Upload Photo</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.photoActionBtn, styles.photoRemoveBtn, isDarkMode && { backgroundColor: '#3F1515', borderColor: '#7F1D1D' }]}
-                          onPress={() => handleRemovePhoto('signature')}
-                          activeOpacity={0.75}
-                        >
-                          <Text style={[styles.photoActionBtnText, styles.photoRemoveBtnText]}>Remove</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-                ) : (
-                  <View>
-                    <TouchableOpacity
-                      style={[
-                        styles.uploadBox,
-                        isDarkMode && { backgroundColor: '#152238', borderColor: dmBorder },
-                      ]}
-                      onPress={() => handleOpenPhotoPicker('signature')}
-                      activeOpacity={0.8}
-                    >
-                      <IconSymbol
-                        name="signature"
-                        size={34}
-                        color={isDarkMode ? '#38BDF8' : '#0284C7'}
-                      />
-                      <Text style={[styles.uploadTitle, { color: dmText }]}>
-                        Attach Applicant Signature
-                      </Text>
-                      <Text style={[styles.uploadSubtitle, isDarkMode && { color: '#94A3B8' }]}>
-                        Upload a clear photo of your handwritten signature on clean white paper
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
                 )}
               </View>
 

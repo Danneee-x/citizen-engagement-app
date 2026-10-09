@@ -141,6 +141,7 @@ export class CertificateService {
           const json = await res.json();
           if (json && json.status === 'success' && json.data) {
             console.log('Successfully saved certificate request in MySQL via:', endpoint, json);
+            CertificateService.localRequestsCache.unshift(json.data);
             return json as CertificateSubmissionResponse;
           }
         }
@@ -161,7 +162,7 @@ export class CertificateService {
 
     const ref = `CAL-DOC-2026-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    return {
+    const fallbackResult: CertificateSubmissionResponse = {
       status: 'success',
       data: {
         request_id: Date.now(),
@@ -176,5 +177,57 @@ export class CertificateService {
         pickup_location: `${payload.barangay} Barangay Hall - Document & Clearance Counter`,
       },
     };
+    CertificateService.localRequestsCache.unshift(fallbackResult.data);
+    return fallbackResult;
+  }
+
+  public static localRequestsCache: CertificateSubmissionResponse['data'][] = [];
+
+  /**
+   * Fetches the current citizen's submitted certificate requests
+   */
+  public static async getCertificateRequests(
+    citizenUserId?: number,
+    email?: string
+  ): Promise<CertificateSubmissionResponse['data'][]> {
+    const queryParams = new URLSearchParams();
+    if (citizenUserId) {
+      queryParams.append('citizen_user_id', String(citizenUserId));
+    }
+    if (email && email.trim()) {
+      queryParams.append('email', email.trim());
+    }
+    const qs = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
+    const candidateEndpoints = [
+      `${API_BASE_URL}/request-certificate.php${qs}`,
+      `${API_BASE_URL}/get-certificate-requests.php${qs}`,
+    ];
+
+    for (const ep of candidateEndpoints) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 6000);
+        const res = await fetch(ep, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.status === 'success' && Array.isArray(json.data)) {
+            // Merge with local requests
+            const serverIds = new Set(json.data.map((item: any) => item.reference_no));
+            const uniqueLocals = this.localRequestsCache.filter((item) => !serverIds.has(item.reference_no));
+            return [...json.data, ...uniqueLocals];
+          }
+        }
+      } catch (e) {
+        // Continue to next endpoint
+      }
+    }
+
+    return this.localRequestsCache;
   }
 }

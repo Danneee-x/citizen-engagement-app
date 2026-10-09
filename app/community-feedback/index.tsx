@@ -118,16 +118,20 @@ export default function CommunityFeedbackScreen() {
       citizenBarangay,
     };
 
-    const isWeb = Platform.OS === 'web' && typeof window !== 'undefined';
-    const hostname = isWeb ? window.location.hostname : 'localhost';
+    const isLocalhost =
+      Platform.OS === 'web' &&
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
     const candidateEndpoints = [
-      `http://${hostname}/citizen-backend/api/citizen/submit-community-feedback.php`,
-      `http://${hostname}/citizen-information-and-engagement-final-try/api/citizen/submit-community-feedback.php`,
-      `http://localhost/citizen-backend/api/citizen/submit-community-feedback.php`,
-      `http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-community-feedback.php`,
-      `http://127.0.0.1/citizen-backend/api/citizen/submit-community-feedback.php`,
       `${API_BASE_URL}/submit-community-feedback.php`,
+      ...(isLocalhost
+        ? [
+            'http://localhost/citizen-backend/api/citizen/submit-community-feedback.php',
+            'http://127.0.0.1/citizen-backend/api/citizen/submit-community-feedback.php',
+            'http://localhost/citizen-information-and-engagement-final-try/api/citizen/submit-community-feedback.php',
+          ]
+        : []),
     ];
 
     let resultData: any = null;

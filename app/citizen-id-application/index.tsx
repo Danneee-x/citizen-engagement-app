@@ -980,7 +980,8 @@ export default function IdIssuanceApplicationScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        quality: 0.85,
+        allowsEditing: false,
+        quality: 0.5,
         base64: true,
       });
 
@@ -1472,19 +1473,25 @@ export default function IdIssuanceApplicationScreen() {
 
               <TouchableOpacity
                 style={styles.doneBtn}
-                onPress={() => router.replace('/(tabs)/services' as any)}
+                onPress={() => router.back()}
                 activeOpacity={0.88}
               >
-                <Text style={styles.doneBtnText}>Back to Services Directory</Text>
+                <Text style={styles.doneBtnText}>Back</Text>
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           <>
-            {/* Top Back Navigation to Services Directory */}
+            {/* Top Back Navigation */}
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => {
+                if (selectedId) {
+                  setSelectedId(null);
+                } else {
+                  router.back();
+                }
+              }}
               activeOpacity={0.7}
             >
               <IconSymbol
@@ -1498,7 +1505,7 @@ export default function IdIssuanceApplicationScreen() {
                   isDarkMode && { color: '#38BDF8' },
                 ]}
               >
-                Back to Services Directory
+                {selectedId ? 'Back to ID Options' : 'Back'}
               </Text>
             </TouchableOpacity>
 
@@ -1586,104 +1593,140 @@ export default function IdIssuanceApplicationScreen() {
 
 {/* List of Active ID Cards to Choose from (Solo Parent ID archived) */}
             <View style={styles.selectionCardsContainer}>
-              {VISIBLE_ID_CATEGORIES.map((item) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.idSelectionCard,
-                    isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
-                  ]}
-                  onPress={() => setSelectedId(item.id)}
-                  activeOpacity={0.85}
-                >
-                  {/* Card Header */}
-                  <View style={styles.cardHeaderRow}>
-                    <View style={[styles.idIconBoxLarge, { backgroundColor: item.iconBg }]}>
-                      <IconSymbol name={item.icon} size={24} color={item.iconColor} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.titleWithBadgeRow}>
-                        <Text style={[styles.cardIdTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                          {item.name}
-                        </Text>
-                        <Badge label={item.badgeLabel} variant={item.badgeVariant} />
-                      </View>
-                      <Text style={[styles.cardIdSubtitle, isDarkMode && { color: '#94A3B8' }]}>
-                        {item.fullTitle}
-                      </Text>
-                    </View>
-                  </View>
+              {VISIBLE_ID_CATEGORIES.map((item) => {
+                const approvedApp = applications.find(
+                  (a) =>
+                    (a.id_category === item.id ||
+                      (item.id === 'citizen_id' && (a.id_category === 'citizen_id' || a.id_title?.toLowerCase().includes('citizen')))) &&
+                    (a.status?.toLowerCase().includes('approv') ||
+                      a.status?.toLowerCase().includes('print') ||
+                      a.status?.toLowerCase().includes('ready'))
+                );
 
-                  {/* Card Description */}
-                  <Text style={[styles.cardIdDescription, isDarkMode && { color: '#CBD5E1' }]}>
-                    {item.description}
-                  </Text>
-
-                  {/* Bureau & Turnaround Pills */}
-                  <View style={styles.pillsRow}>
-                    <View
-                      style={[
-                        styles.infoPill,
-                        isDarkMode && { backgroundColor: '#152238' },
-                      ]}
-                    >
-                      <IconSymbol name="building.2.fill" size={13} color="#64748B" />
-                      <Text
-                        style={[styles.infoPillText, isDarkMode && { color: '#94A3B8' }]}
-                        numberOfLines={1}
-                      >
-                        {item.issuingBureau}
-                      </Text>
-                    </View>
-
-                    <View
-                      style={[
-                        styles.infoPill,
-                        isDarkMode && { backgroundColor: '#152238' },
-                      ]}
-                    >
-                      <IconSymbol name="clock.fill" size={13} color="#0284C7" />
-                      <Text
-                        style={[styles.infoPillText, { color: '#0284C7', fontWeight: '700' }, isDarkMode && { color: '#38BDF8' }]}
-                      >
-                        {item.estimatedTurnaround}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {/* Key Benefits Preview */}
-                  <View
+                return (
+                  <TouchableOpacity
+                    key={item.id}
                     style={[
-                      styles.cardBenefitsBox,
-                      isDarkMode && { backgroundColor: '#152238' },
+                      styles.idSelectionCard,
+                      approvedApp && { borderColor: '#10B981', borderWidth: 1.5 },
+                      isDarkMode && { backgroundColor: '#1C2541', borderColor: approvedApp ? '#10B981' : '#3A506B' },
                     ]}
+                    onPress={() => {
+                      if (approvedApp) {
+                        handleShowDigitalId(approvedApp);
+                      } else {
+                        setSelectedId(item.id);
+                      }
+                    }}
+                    activeOpacity={0.85}
                   >
-                    <Text style={[styles.cardBenefitsTitle, isDarkMode && { color: '#93C5FD' }]}>
-                      Key Benefits & Entitlements:
-                    </Text>
-                    {item.keyBenefits.slice(0, 2).map((benefit, bIdx) => (
-                      <View key={bIdx} style={styles.miniBenefitRow}>
-                        <IconSymbol name="checkmark" size={11} color="#10B981" />
-                        <Text style={[styles.miniBenefitText, isDarkMode && { color: '#CBD5E1' }]} numberOfLines={1}>
-                          {benefit}
+                    {/* Card Header */}
+                    <View style={styles.cardHeaderRow}>
+                      <View style={[styles.idIconBoxLarge, { backgroundColor: item.iconBg }]}>
+                        <IconSymbol name={item.icon} size={24} color={item.iconColor} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.titleWithBadgeRow}>
+                          <Text style={[styles.cardIdTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                            {item.name}
+                          </Text>
+                          {approvedApp ? (
+                            <Badge label={(approvedApp.status || '').toLowerCase().includes('print') ? 'READY TO PRINT' : 'ID APPROVED'} variant="success" />
+                          ) : (
+                            <Badge label={item.badgeLabel} variant={item.badgeVariant} />
+                          )}
+                        </View>
+                        <Text style={[styles.cardIdSubtitle, isDarkMode && { color: '#94A3B8' }]}>
+                          {item.fullTitle}
                         </Text>
                       </View>
-                    ))}
-                  </View>
+                    </View>
 
-                  {/* Apply Action Button */}
-                  <View style={styles.cardActionFooter}>
-                    <Text style={[styles.applyButtonText, isDarkMode && { color: '#38BDF8' }]}>
-                      Apply for {item.name}
+                    {/* Card Description */}
+                    <Text style={[styles.cardIdDescription, isDarkMode && { color: '#CBD5E1' }]}>
+                      {item.description}
                     </Text>
-                    <IconSymbol
-                      name="chevron.right"
-                      size={15}
-                      color={isDarkMode ? '#38BDF8' : '#2563EB'}
-                    />
-                  </View>
-                </TouchableOpacity>
-              ))}
+
+                    {/* Bureau & Turnaround Pills */}
+                    <View style={styles.pillsRow}>
+                      <View
+                        style={[
+                          styles.infoPill,
+                          isDarkMode && { backgroundColor: '#152238' },
+                        ]}
+                      >
+                        <IconSymbol name="building.2.fill" size={13} color="#64748B" />
+                        <Text
+                          style={[styles.infoPillText, isDarkMode && { color: '#94A3B8' }]}
+                          numberOfLines={1}
+                        >
+                          {item.issuingBureau}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.infoPill,
+                          isDarkMode && { backgroundColor: '#152238' },
+                        ]}
+                      >
+                        <IconSymbol name="clock.fill" size={13} color="#0284C7" />
+                        <Text
+                          style={[styles.infoPillText, { color: '#0284C7', fontWeight: '700' }, isDarkMode && { color: '#38BDF8' }]}
+                        >
+                          {item.estimatedTurnaround}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Key Benefits Preview */}
+                    <View
+                      style={[
+                        styles.cardBenefitsBox,
+                        isDarkMode && { backgroundColor: '#152238' },
+                      ]}
+                    >
+                      <Text style={[styles.cardBenefitsTitle, isDarkMode && { color: '#93C5FD' }]}>
+                        Key Benefits & Entitlements:
+                      </Text>
+                      {item.keyBenefits.slice(0, 2).map((benefit, bIdx) => (
+                        <View key={bIdx} style={styles.miniBenefitRow}>
+                          <IconSymbol name="checkmark" size={11} color="#10B981" />
+                          <Text style={[styles.miniBenefitText, isDarkMode && { color: '#CBD5E1' }]} numberOfLines={1}>
+                            {benefit}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Apply or View ID Action Button */}
+                    {approvedApp ? (
+                      <View style={[styles.cardActionFooter, { backgroundColor: '#ECFDF5' }]}>
+                        <IconSymbol name="creditcard.fill" size={15} color="#059669" />
+                        <Text style={[styles.applyButtonText, { color: '#059669', fontWeight: '800' }]}>
+                          View Digital ID Copy
+                        </Text>
+                        <IconSymbol
+                          name="chevron.right"
+                          size={15}
+                          color="#059669"
+                        />
+                      </View>
+                    ) : (
+                      <View style={styles.cardActionFooter}>
+                        <Text style={[styles.applyButtonText, isDarkMode && { color: '#38BDF8' }]}>
+                          Apply for {item.name}
+                        </Text>
+                        <IconSymbol
+                          name="chevron.right"
+                          size={15}
+                          color={isDarkMode ? '#38BDF8' : '#2563EB'}
+                        />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </>
         ) : (
@@ -1741,6 +1784,52 @@ export default function IdIssuanceApplicationScreen() {
                 </View>
               </View>
             </View>
+
+            {/* Approved Digital ID Copy Banner if Application is Approved / Ready to Print */}
+            {(() => {
+              const approvedApp = applications.find(
+                (a) =>
+                  (a.id_category === activeCategory.id ||
+                    (activeCategory.id === 'citizen_id' && (a.id_category === 'citizen_id' || a.id_title?.toLowerCase().includes('citizen')))) &&
+                  (a.status?.toLowerCase().includes('approv') ||
+                    a.status?.toLowerCase().includes('print') ||
+                    a.status?.toLowerCase().includes('ready'))
+              );
+              if (!approvedApp) return null;
+              return (
+                <View
+                  style={[
+                    styles.approvedIdCopyCard,
+                    isDarkMode && { backgroundColor: '#064E3B', borderColor: '#059669' },
+                  ]}
+                >
+                  <View style={styles.approvedIdCopyHeader}>
+                    <View style={styles.approvedIdIconCircle}>
+                      <IconSymbol name="creditcard.fill" size={24} color="#FFFFFF" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.approvedIdCopyTitle}>
+                        Official Digital ID Issued & Active
+                      </Text>
+                      <Text style={styles.approvedIdCopySubtitle}>
+                        Status: {(approvedApp.status || '').toLowerCase().includes('print') ? 'Ready to Print' : approvedApp.status} • Ref: {approvedApp.reference_no}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.approvedIdCopyDesc}>
+                    Your official {activeCategory.name} copy has been evaluated, approved, and generated by the Civil Registry. Tap below to view your official digital card copy with security QR code.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.approvedIdCopyBtn}
+                    onPress={() => handleShowDigitalId(approvedApp)}
+                    activeOpacity={0.85}
+                  >
+                    <IconSymbol name="eye.fill" size={17} color="#065F46" />
+                    <Text style={styles.approvedIdCopyBtnText}>Open Digital ID Copy</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })()}
 
             {/* Application Form Card */}
             <View
@@ -2945,10 +3034,11 @@ export default function IdIssuanceApplicationScreen() {
                     isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B', color: '#F8FAFC' },
                   ]}
                   value={emergencyContactPhone}
-                  onChangeText={setEmergencyContactPhone}
+                  onChangeText={(val) => setEmergencyContactPhone(val.replace(/[^0-9]/g, '').slice(0, 11))}
                   placeholder="09XXXXXXXXX"
                   placeholderTextColor="#94A3B8"
                   keyboardType="phone-pad"
+                  maxLength={11}
                 />
               </View>
 
@@ -3143,16 +3233,23 @@ export default function IdIssuanceApplicationScreen() {
                   ) : (
                     <TouchableOpacity
                       style={[
-                        styles.uploadTrigger,
+                        styles.signatureUploadCard,
                         isDarkMode && { backgroundColor: '#0E1726', borderColor: '#3A506B' },
                       ]}
                       onPress={() => handlePickDocument('signature')}
-                      activeOpacity={0.8}
+                      activeOpacity={0.82}
                     >
-                      <IconSymbol name="arrow.up.doc.fill" size={18} color="#0284C7" />
-                      <Text style={[styles.uploadTriggerText, isDarkMode && { color: '#38BDF8' }]}>
-                        Upload Signature Photo or Scan (JPG/PNG)
-                      </Text>
+                      <View style={styles.signatureUploadIconCircle}>
+                        <IconSymbol name="camera.fill" size={20} color="#0284C7" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.signatureUploadCardTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                          Attach Handwritten Signature
+                        </Text>
+                        <Text style={[styles.signatureUploadCardSub, isDarkMode && { color: '#94A3B8' }]}>
+                          Tap to select or capture a photo of your signature on white paper (JPG/PNG)
+                        </Text>
+                      </View>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -3174,6 +3271,38 @@ export default function IdIssuanceApplicationScreen() {
                   </Text>
                 </View>
               </View>
+
+              {/* PWD Document Requirements Checklist Banner */}
+              {activeCategory.id === 'pwd_id' && (
+                <View style={[styles.pwdRequirementsCard, isDarkMode && { backgroundColor: '#1E1B4B', borderColor: '#4338CA' }]}>
+                  <View style={styles.pwdRequirementsHeader}>
+                    <IconSymbol name="figure.roll" size={20} color={isDarkMode ? '#A78BFA' : '#7C3AED'} />
+                    <Text style={[styles.pwdRequirementsTitle, isDarkMode && { color: '#E0E7FF' }]}>
+                      Mandatory PWD Document Checklist (RA 10754)
+                    </Text>
+                  </View>
+                  <View style={styles.pwdRequirementsList}>
+                    <View style={styles.pwdReqItem}>
+                      <IconSymbol name="checkmark.circle.fill" size={15} color="#10B981" />
+                      <Text style={[styles.pwdReqText, isDarkMode && { color: '#C7D2FE' }]}>
+                        Clinical Medical Certificate stating exact disability & diagnosis signed by attending physician
+                      </Text>
+                    </View>
+                    <View style={styles.pwdReqItem}>
+                      <IconSymbol name="checkmark.circle.fill" size={15} color="#10B981" />
+                      <Text style={[styles.pwdReqText, isDarkMode && { color: '#C7D2FE' }]}>
+                        Barangay Certificate of Residency proving applicant resides in Caloocan City
+                      </Text>
+                    </View>
+                    <View style={styles.pwdReqItem}>
+                      <IconSymbol name="checkmark.circle.fill" size={15} color="#10B981" />
+                      <Text style={[styles.pwdReqText, isDarkMode && { color: '#C7D2FE' }]}>
+                        2x2 Formal Portrait with plain white background & applicant signature
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
 
               {/* Requirement 1: Primary Document */}
               <View style={styles.reqBlock}>
@@ -6186,5 +6315,125 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     letterSpacing: 0.2,
+  },
+  approvedIdCopyCard: {
+    backgroundColor: '#059669',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  approvedIdCopyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  approvedIdIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  approvedIdCopyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  approvedIdCopySubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A7F3D0',
+    marginTop: 2,
+  },
+  approvedIdCopyDesc: {
+    fontSize: 12.5,
+    color: '#ECFDF5',
+    lineHeight: 18,
+    marginBottom: 14,
+  },
+  approvedIdCopyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  approvedIdCopyBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  signatureUploadCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#38BDF8',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  signatureUploadIconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  signatureUploadCardTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0284C7',
+    marginBottom: 2,
+  },
+  signatureUploadCardSub: {
+    fontSize: 11.5,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  pwdRequirementsCard: {
+    backgroundColor: '#FAF5FF',
+    borderWidth: 1.5,
+    borderColor: '#D8B4FE',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+  },
+  pwdRequirementsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  pwdRequirementsTitle: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#6B21A8',
+  },
+  pwdRequirementsList: {
+    gap: 8,
+  },
+  pwdReqItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  pwdReqText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#581C87',
+    lineHeight: 17,
   },
 });

@@ -2,6 +2,7 @@ import { IconSymbol } from "@/src/components/ui/icon-symbol";
 import { Badge } from "@/src/components/ui/Badge";
 import { useTheme } from "@/src/context/ThemeContext";
 import { AuthService } from "@/src/services/auth-service";
+import { NotificationService } from "@/src/services/notification-service";
 import {
     CitizenProfileData,
     ProfileService,
@@ -178,13 +179,14 @@ export function HomeScreen() {
         ? "CIV-GUEST-2026"
         : "CIV-2026-00001",
     status: isGuestMode ? "Guest" : "Active",
-    isVerified: true,
-    registryCompleted: true,
+    isVerified: false,
+    registryCompleted: false,
     biometricEnabled: false,
     memberSince: "2026",
     lastLogin: isGuestMode ? "Current Session (Guest Mode)" : "Just Now",
   });
 
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(INITIAL_ANNOUNCEMENTS);
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<AnnouncementItem | null>(null);
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
@@ -195,6 +197,31 @@ export function HomeScreen() {
     admin_action_notes?: string;
     rejection_reason?: string;
   }>({ status: 'Not_Submitted' });
+
+  
+  const loadAnnouncements = async () => {
+    try {
+      const alerts = await NotificationService.getCivicAlerts(activeEmail || '');
+      if (alerts && alerts.length > 0) {
+        const mapped: AnnouncementItem[] = alerts.map((a, i) => {
+          const isEmergency = (a.category || '').toLowerCase().includes('emergency') || a.priority === 'Urgent';
+          return {
+            id: a.id || `ALERT-${i}`,
+            category: isEmergency ? 'EMERGENCY ADVISORY' : 'COMMUNITY BROADCAST',
+            badgeVariant: isEmergency ? 'danger' : 'info',
+            title: a.title,
+            date: a.timestamp || 'Recent',
+            summary: a.body.length > 130 ? a.body.slice(0, 130) + '...' : a.body,
+            fullBody: a.bodyHtml || a.body,
+            department: a.sender || 'Caloocan Public Information Office',
+          };
+        });
+        setAnnouncements(mapped);
+      }
+    } catch (err) {
+      console.warn('Failed to load live announcements:', err);
+    }
+  };
 
   const loadProfile = async () => {
     if (isGuestMode) return;
@@ -224,13 +251,13 @@ export function HomeScreen() {
           admin_action_notes: verifRes.admin_action_notes,
           rejection_reason: verifRes.rejection_reason,
         });
-        if (verifRes.citizen_id_number) {
-          setUserProfile((prev) => ({
-            ...prev,
-            citizenId: verifRes.citizen_id_number || prev.citizenId,
-            isVerified: verifRes.verification_status === 'Approved',
-          }));
-        }
+        const vSt = (verifRes.verification_status || '').toLowerCase();
+        const isVerifApproved = vSt.includes('approv') || vSt.includes('ready') || vSt.includes('print');
+        setUserProfile((prev) => ({
+          ...prev,
+          citizenId: verifRes.citizen_id_number || prev.citizenId,
+          isVerified: isVerifApproved,
+        }));
       }
     } catch (e) {
       console.warn('Error loading verification status:', e);
@@ -245,6 +272,7 @@ export function HomeScreen() {
       }
       setIsLoadingProfile(true);
       await loadProfile();
+      await loadAnnouncements();
       setIsLoadingProfile(false);
     }
     initData();
@@ -254,6 +282,7 @@ export function HomeScreen() {
     if (isGuestMode) return;
     setIsRefreshing(true);
     await loadProfile();
+    await loadAnnouncements();
     setIsRefreshing(false);
   };
 
@@ -409,30 +438,56 @@ export function HomeScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* PILLAR 4: Digital Resident ID */}
-              <TouchableOpacity
-                style={[
-                  styles.pillarCard,
-                  { backgroundColor: dm ? "#210C36" : "#FAF5FF" },
-                ]}
-                onPress={() => {
-                  const s = (verificationData.status || '').toLowerCase();
-                  if (s.includes('approv') || s.includes('print') || s.includes('ready')) {
-                    router.push("/(auth)/verify-citizen");
-                  } else {
-                    setIsQrModalVisible(true);
-                  }
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={[styles.pillarIconBadge, { backgroundColor: "#9333EA" }]}>
-                  <IconSymbol name="person.text.rectangle.fill" size={20} color="#FFFFFF" />
-                </View>
-                <Text style={[styles.pillarValueStatus, { color: C.textPrimary }]}>Active</Text>
-                <Text style={[styles.pillarLabel, { color: C.textSecondary }]}>
-                  Digital{"\n"}Resident ID
-                </Text>
-              </TouchableOpacity>
+              {/* PILLAR 4: Citizen Verification / Digital Resident ID */}
+              {(() => {
+                const s = (verificationData.status || '').toLowerCase();
+                const isApproved = s.includes('approv') || s.includes('print') || s.includes('ready');
+                const isPending = s.includes('pend') || s.includes('review');
+                const isCorrection = s.includes('return') || s.includes('correct') || s.includes('rework');
+
+                let badgeColor = "#0284C7";
+                let statusText = "Verify";
+                let labelText = `Verify\nCitizenship`;
+                let iconName: any = "person.badge.shield.checkmark.fill";
+
+                if (isApproved) {
+                  badgeColor = "#10B981";
+                  statusText = "Active";
+                  labelText = `Digital\nResident ID`;
+                  iconName = "person.text.rectangle.fill";
+                } else if (isPending) {
+                  badgeColor = "#D97706";
+                  statusText = "Pending";
+                  labelText = `Verification\nIn Review`;
+                  iconName = "clock.fill";
+                } else if (isCorrection) {
+                  badgeColor = "#EA580C";
+                  statusText = "Action Req.";
+                  labelText = `Verify\nCitizenship`;
+                  iconName = "exclamationmark.triangle.fill";
+                }
+
+                return (
+                  <TouchableOpacity
+                    style={[
+                      styles.pillarCard,
+                      { backgroundColor: dm ? "#102A43" : "#F0F9FF" },
+                    ]}
+                    onPress={() => router.push("/(auth)/verify-citizen")}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={labelText.replace('\n', ' ')}
+                  >
+                    <View style={[styles.pillarIconBadge, { backgroundColor: badgeColor }]}>
+                      <IconSymbol name={iconName} size={20} color="#FFFFFF" />
+                    </View>
+                    <Text style={[styles.pillarValueStatus, { color: C.textPrimary }]}>{statusText}</Text>
+                    <Text style={[styles.pillarLabel, { color: C.textSecondary }]}>
+                      {labelText}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })()}
             </View>
 
             {/* BOTTOM PAGINATION INDICATOR BAR */}
@@ -845,13 +900,13 @@ export function HomeScreen() {
               </Text>
             </TouchableOpacity>
           </View>
-          {INITIAL_ANNOUNCEMENTS[0] && (
+          {announcements[0] && (
             <TouchableOpacity
               style={[
                 styles.featuredCard,
                 { backgroundColor: C.surface, borderColor: C.border },
               ]}
-              onPress={() => setSelectedAnnouncement(INITIAL_ANNOUNCEMENTS[0])}
+              onPress={() => setSelectedAnnouncement(announcements[0])}
               activeOpacity={0.85}
             >
               <View style={styles.featuredAccent} />
@@ -870,19 +925,19 @@ export function HomeScreen() {
                   style={[styles.featuredTitle, { color: C.textPrimary }]}
                   numberOfLines={2}
                 >
-                  {INITIAL_ANNOUNCEMENTS[0].title}
+                  {announcements[0].title}
                 </Text>
                 <Text
                   style={[styles.featuredSummary, { color: C.textSecondary }]}
                   numberOfLines={2}
                 >
-                  {INITIAL_ANNOUNCEMENTS[0].summary}
+                  {announcements[0].summary}
                 </Text>
                 <View style={styles.featuredFooter}>
                   <Text
                     style={[styles.featuredDept, { color: C.textSecondary }]}
                   >
-                    {INITIAL_ANNOUNCEMENTS[0].department}
+                    {announcements[0].department}
                   </Text>
                   <View style={styles.readRow}>
                     <Text style={[styles.readText, { color: C.blue }]}>
@@ -894,13 +949,13 @@ export function HomeScreen() {
               </View>
             </TouchableOpacity>
           )}
-          {INITIAL_ANNOUNCEMENTS[1] && (
+          {announcements[1] && (
             <TouchableOpacity
               style={[
                 styles.secondaryRow,
                 { backgroundColor: C.surface, borderColor: C.border },
               ]}
-              onPress={() => setSelectedAnnouncement(INITIAL_ANNOUNCEMENTS[1])}
+              onPress={() => setSelectedAnnouncement(announcements[1])}
               activeOpacity={0.85}
             >
               <View style={styles.secondaryLeft}>
@@ -911,12 +966,12 @@ export function HomeScreen() {
                   style={[styles.secondaryTitle, { color: C.textPrimary }]}
                   numberOfLines={1}
                 >
-                  {INITIAL_ANNOUNCEMENTS[1].title}
+                  {announcements[1].title}
                 </Text>
                 <Text
                   style={[styles.secondaryDate, { color: C.textSecondary }]}
                 >
-                  {INITIAL_ANNOUNCEMENTS[1].date}
+                  {announcements[1].date}
                 </Text>
               </View>
               <IconSymbol
