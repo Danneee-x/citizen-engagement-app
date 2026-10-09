@@ -1132,12 +1132,20 @@ export function VerifyCitizenScreen() {
   };
 
   const convertToDataUri = async (asset: ImagePicker.ImagePickerAsset): Promise<string> => {
-    // If running on web, downscale using canvas to prevent sending massive 10MB camera blobs
+    // 1. If Expo ImagePicker provided base64 data directly, return full data URI immediately
+    if (asset.base64) {
+      const mime = asset.mimeType || 'image/jpeg';
+      return `data:${mime};base64,${asset.base64}`;
+    }
+
+    // 2. If running on web, downscale using canvas to prevent sending massive 10MB camera blobs
     if (Platform.OS === 'web' && typeof document !== 'undefined' && asset.uri) {
       try {
         const compressed = await new Promise<string>((resolve) => {
           const img = new (window as any).Image();
-          img.crossOrigin = 'anonymous';
+          if (!asset.uri.startsWith('blob:') && !asset.uri.startsWith('data:')) {
+            img.crossOrigin = 'anonymous';
+          }
           img.onload = () => {
             const maxDim = 1200;
             let width = img.width;
@@ -1500,6 +1508,21 @@ export function VerifyCitizenScreen() {
         }
       }
 
+      let finalSignature = signatureUri;
+      if (finalSignature && finalSignature.startsWith('blob:')) {
+        try {
+          const r = await fetch(finalSignature);
+          const b = await r.blob();
+          finalSignature = await new Promise<string>((res) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res(reader.result as string);
+            reader.readAsDataURL(b);
+          });
+        } catch (e) {
+          console.warn('Could not convert blob signature to base64:', e);
+        }
+      }
+
       // 2. Transmit to MySQL citizen_verification database via API
       const payload = {
         citizen_user_id: currentUser.citizen_user_id || undefined,
@@ -1525,7 +1548,7 @@ export function VerifyCitizenScreen() {
         id_front_photo_url: finalIdPhoto || null,
         selfie_photo_url: finalSelfiePhoto || null,
         photo_1x1_url: finalPhoto1x1 || null,
-        signature_photo_url: null,
+        signature_photo_url: finalSignature || null,
       };
 
       const isLocalhost =
