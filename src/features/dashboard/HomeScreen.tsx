@@ -416,7 +416,8 @@ export function HomeScreen() {
                   { backgroundColor: dm ? "#210C36" : "#FAF5FF" },
                 ]}
                 onPress={() => {
-                  if (verificationData.status === 'Approved') {
+                  const s = (verificationData.status || '').toLowerCase();
+                  if (s.includes('approv') || s.includes('print') || s.includes('ready')) {
                     router.push("/(auth)/verify-citizen");
                   } else {
                     setIsQrModalVisible(true);
@@ -499,7 +500,7 @@ export function HomeScreen() {
 
           {/* DYNAMIC CITIZEN VERIFICATION BANNER */}
           {(() => {
-            const vStatus = verificationData.status;
+            const vStatus = String(verificationData.status || '');
             let bannerBg = dm ? "#0284C7" : "#176B87";
             let iconName: any = "checkmark.seal.fill";
             let bannerTitle = "Verify Citizenship";
@@ -518,11 +519,18 @@ export function HomeScreen() {
               bannerTitle = "Action Required: Rework Requested";
               bannerSub = "Admin requested corrections. Tap to review & resubmit";
               targetRoute = "/(auth)/verify-citizen";
-            } else if (vStatus === 'Approved') {
+            } else if (
+              vStatus === 'Approved' ||
+              vStatus.toLowerCase().includes('print') ||
+              vStatus.toLowerCase().includes('approv') ||
+              vStatus.toLowerCase().includes('ready')
+            ) {
               bannerBg = "#059669";
               iconName = "checkmark.seal.fill";
-              bannerTitle = "Verified Citizen Account";
-              bannerSub = `ID: ${verificationData.citizen_id_number || userProfile.citizenId || 'CAL-2026-000004'} • Tap to View Citizen ID Card`;
+              bannerTitle = (vStatus || '').toLowerCase().includes('print')
+                ? "Digital ID Ready to Print"
+                : "Verified Citizen Account";
+              bannerSub = `ID: ${verificationData.citizen_id_number || userProfile.citizenId || 'CAL-2026-000004'} • Tap to View Digital ID Card`;
               targetRoute = "/(auth)/verify-citizen";
             } else if (vStatus === 'Rejected') {
               bannerBg = "#DC2626";

@@ -24,6 +24,7 @@ import { AuthService, API_BASE_URL } from '@/src/services/auth-service';
 import { ProfileService } from '@/src/services/profile-service';
 import { LocalCitizenTable } from '@/src/services/local-citizen-table';
 import { IdIssuanceService, IdApplicationRecord, SubmitIdApplicationPayload } from '@/src/services/id-issuance-service';
+import { DigitalIdCardModal, DigitalIdCardData } from '@/src/components/DigitalIdCardModal';
 
 export interface IdCategoryOption {
   id: string;
@@ -44,6 +45,7 @@ export interface IdCategoryOption {
   claimOffice: string;
   estimatedTurnaround: string;
   refPrefix: string;
+  isArchived?: boolean;
 }
 
 export const ID_CATEGORIES: IdCategoryOption[] = [
@@ -99,6 +101,7 @@ export const ID_CATEGORIES: IdCategoryOption[] = [
     id: 'solo_parent_id',
     name: 'Solo Parent ID',
     fullTitle: 'Solo Parent Welfare Identification Card (RA 11861)',
+    isArchived: true, // Archived per panelist review preference; preserved for reactivation
     badgeLabel: 'WELFARE & SUBSIDY',
     badgeVariant: 'warning',
     icon: 'person.2.fill',
@@ -169,6 +172,10 @@ export const ID_CATEGORIES: IdCategoryOption[] = [
   },
 ];
 
+// Active visible categories presented to citizens in UI: Citizen ID, Barangay ID, PWD ID, Senior Citizen ID.
+// Note: Solo Parent ID is archived/hidden per panelist review preference; preserved for future reactivation.
+export const VISIBLE_ID_CATEGORIES: IdCategoryOption[] = ID_CATEGORIES.filter((c) => !c.isArchived);
+
 export const APPLICATION_TYPES = [
   { id: 'New Application', label: 'New Application', desc: 'First time applicant for this identification card' },
   { id: 'Renewal', label: 'Renewal', desc: 'Renew an expiring or expired identification card' },
@@ -208,6 +215,43 @@ export const RESIDENCY_YEARS = [
   '10+ years',
   'Since Birth',
 ] as const;
+
+export const CIVIL_STATUS_OPTIONS = [
+  'Single',
+  'Married',
+  'Widowed',
+  'Separated',
+  'Divorced',
+] as const;
+
+export const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+export const WEEK_DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+export const formatDisplayDate = (dateStr: string): string => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const y = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  const d = parseInt(parts[2], 10);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return dateStr;
+  const mName = MONTH_NAMES[m - 1] || '';
+  return `${mName} ${d}, ${y}`;
+};
 
 export const MONTHS_LIST = [
   { value: '01', label: 'January', short: 'Jan' },
@@ -286,7 +330,7 @@ export const getIdStageIndex = (status: string): number => {
   const s = (status || '').toLowerCase();
   if (s.includes('rejected')) return -1;
   if (s.includes('claim')) return 4;
-  if (s.includes('ready')) return 3;
+  if (s.includes('ready') || s.includes('print')) return 3;
   if (s.includes('approv') || s.includes('process')) return 2;
   if (s.includes('under review') || s.includes('evaluat')) return 1;
   return 0;
@@ -299,6 +343,9 @@ export const getStatusBadgeInfo = (status: string) => {
   }
   if (s.includes('claim')) {
     return { label: 'CLAIMED', variant: 'neutral' as const, color: '#047857', bg: '#D1FAE5', border: '#6EE7B7' };
+  }
+  if (s.includes('print')) {
+    return { label: 'READY TO PRINT', variant: 'info' as const, color: '#0284C7', bg: '#E0F2FE', border: '#7DD3FC' };
   }
   if (s.includes('ready')) {
     return { label: 'READY FOR RELEASE', variant: 'info' as const, color: '#7C3AED', bg: '#EDE9FE', border: '#C4B5FD' };
@@ -329,6 +376,39 @@ export default function IdIssuanceApplicationScreen() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [expandedAppId, setExpandedAppId] = useState<number | null>(null);
 
+  // Digital ID Card Modal State
+  const [selectedDigitalIdData, setSelectedDigitalIdData] = useState<DigitalIdCardData | null>(null);
+  const [isDigitalIdModalVisible, setIsDigitalIdModalVisible] = useState(false);
+
+  const handleShowDigitalId = (app: IdApplicationRecord) => {
+    setSelectedDigitalIdData({
+      reference_no: app.reference_no,
+      citizen_id_number: app.reference_no,
+      first_name: app.first_name,
+      middle_name: app.middle_name,
+      last_name: app.last_name,
+      suffix: app.suffix,
+      gender: app.gender,
+      birthdate: app.birthdate,
+      civil_status: app.civil_status,
+      blood_type: 'N/A',
+      street_address: app.street_address,
+      barangay: app.barangay,
+      district: app.district,
+      emergency_contact: app.emergency_contact_name,
+      emergency_contact_phone: app.emergency_contact_phone,
+      photo_url: app.photo_2x2_url || app.primary_doc_url,
+      photo_2x2_url: app.photo_2x2_url,
+      signature_url: app.signature_url,
+      id_category: app.id_category,
+      id_title: app.id_title,
+      status: app.status,
+      created_at: app.created_at,
+      reviewed_at: app.reviewed_at,
+    });
+    setIsDigitalIdModalVisible(true);
+  };
+
   // Application Type State
   const [appType, setAppType] = useState<string>(APPLICATION_TYPES[0].id);
   const [replacementReason, setReplacementReason] = useState<string>(REPLACEMENT_REASONS[0].id);
@@ -356,6 +436,78 @@ export default function IdIssuanceApplicationScreen() {
   const [birthDay, setBirthDay] = useState('');
   const [activeDobPicker, setActiveDobPicker] = useState<'month' | 'day' | 'year' | null>(null);
   const [yearDecadeFilter, setYearDecadeFilter] = useState<string>('All');
+
+  // Single Dropdown Birthdate Calendar & Civil Status Dropdown States
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [calYear, setCalYear] = useState<number>(1995);
+  const [calMonth, setCalMonth] = useState<number>(4); // May (0-indexed)
+  const [isCalMonthDropdownOpen, setIsCalMonthDropdownOpen] = useState(false);
+  const [isCalYearDropdownOpen, setIsCalYearDropdownOpen] = useState(false);
+  const [isCivilStatusDropdownOpen, setIsCivilStatusDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (birthDate) {
+      const parts = birthDate.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const d = parseInt(parts[2], 10);
+        if (!isNaN(y)) setCalYear(y);
+        if (!isNaN(m) && m >= 0 && m < 12) setCalMonth(m);
+        setBirthYear(String(y));
+        setBirthMonth(String(m + 1).padStart(2, '0'));
+        setBirthDay(String(d).padStart(2, '0'));
+      }
+    }
+  }, [birthDate]);
+
+  const YEAR_OPTIONS = React.useMemo(() => {
+    const years: number[] = [];
+    const currentYear = new Date().getFullYear();
+    for (let yr = currentYear; yr >= 1920; yr--) {
+      years.push(yr);
+    }
+    return years;
+  }, []);
+
+  const daysInCalMonth = React.useMemo(() => {
+    return new Date(calYear, calMonth + 1, 0).getDate();
+  }, [calYear, calMonth]);
+
+  const firstDayOfWeek = React.useMemo(() => {
+    return new Date(calYear, calMonth, 1).getDay();
+  }, [calYear, calMonth]);
+
+  const handleSelectDay = (day: number) => {
+    const mm = String(calMonth + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const fullDate = `${calYear}-${mm}-${dd}`;
+    setBirthDate(fullDate);
+    setBirthYear(String(calYear));
+    setBirthMonth(mm);
+    setBirthDay(dd);
+    setIsCalendarOpen(false);
+    setIsCalMonthDropdownOpen(false);
+    setIsCalYearDropdownOpen(false);
+  };
+
+  const handlePrevMonth = () => {
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear((prev) => prev - 1);
+    } else {
+      setCalMonth((prev) => prev - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear((prev) => prev + 1);
+    } else {
+      setCalMonth((prev) => prev + 1);
+    }
+  };
 
   // Interactive In-App Signature Drawing Pad State
   const [isSigModalVisible, setIsSigModalVisible] = useState(false);
@@ -1426,9 +1578,9 @@ export default function IdIssuanceApplicationScreen() {
                       </Text>
                     </View>
 
-{/* List of 5 ID Cards to Choose from */}
+{/* List of Active ID Cards to Choose from (Solo Parent ID archived) */}
             <View style={styles.selectionCardsContainer}>
-              {ID_CATEGORIES.map((item) => (
+              {VISIBLE_ID_CATEGORIES.map((item) => (
                 <TouchableOpacity
                   key={item.id}
                   style={[
@@ -1823,7 +1975,7 @@ export default function IdIssuanceApplicationScreen() {
                 </View>
               </View>
 
-              {/* Universal Date of Birth (3-Dropdown Selector) */}
+              {/* Universal Date of Birth (Single Dropdown Trigger + Interactive Calendar Drawer) */}
               <View style={styles.inputGroup}>
                 <View style={styles.dobLabelRow}>
                   <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
@@ -1853,330 +2005,243 @@ export default function IdIssuanceApplicationScreen() {
                     </View>
                   ) : (
                     <Text style={[styles.dobPlaceholderHint, isDarkMode && { color: '#64748B' }]}>
-                      Select Month, Day & Year
+                      Select Birthdate
                     </Text>
                   )}
                 </View>
 
-                {/* 3 Dropdown Buttons in a row: Month, Day, Year */}
-                <View style={styles.dobDropdownRow}>
-                  {/* Month Trigger */}
-                  <TouchableOpacity
-                    style={[
-                      styles.dobDropdownBtn,
-                      { flex: 1.4 },
-                      activeDobPicker === 'month' && styles.dobDropdownBtnActive,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: activeDobPicker === 'month' ? '#0284C7' : '#3A506B' },
-                    ]}
-                    onPress={() => setActiveDobPicker(activeDobPicker === 'month' ? null : 'month')}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.dobDropdownContent}>
-                      <Text style={[styles.dobDropdownSublabel, isDarkMode && { color: '#64748B' }]}>Month</Text>
-                      <Text
-                        style={[
-                          styles.dobDropdownValue,
-                          !birthMonth && styles.dobDropdownValuePlaceholder,
-                          isDarkMode && { color: birthMonth ? '#F8FAFC' : '#64748B' },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {birthMonth
-                          ? MONTHS_LIST.find((m) => m.value === birthMonth)?.label || birthMonth
-                          : 'Select Month'}
-                      </Text>
-                    </View>
+                {/* Single Dropdown Trigger */}
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownTrigger,
+                    isCalendarOpen && styles.dropdownTriggerActive,
+                    isDarkMode && { backgroundColor: '#152238', borderColor: isCalendarOpen ? '#0284C7' : '#3A506B' },
+                  ]}
+                  onPress={() => {
+                    setIsCalendarOpen((prev) => !prev);
+                    setIsCivilStatusDropdownOpen(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
                     <IconSymbol
-                      name={activeDobPicker === 'month' ? 'chevron.up' : 'chevron.down'}
-                      size={16}
-                      color={isDarkMode ? '#94A3B8' : '#64748B'}
+                      name="calendar"
+                      size={18}
+                      color={isDarkMode ? '#38BDF8' : '#0284C7'}
                     />
-                  </TouchableOpacity>
-
-                  {/* Day Trigger */}
-                  <TouchableOpacity
-                    style={[
-                      styles.dobDropdownBtn,
-                      { flex: 0.9 },
-                      activeDobPicker === 'day' && styles.dobDropdownBtnActive,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: activeDobPicker === 'day' ? '#0284C7' : '#3A506B' },
-                    ]}
-                    onPress={() => setActiveDobPicker(activeDobPicker === 'day' ? null : 'day')}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.dobDropdownContent}>
-                      <Text style={[styles.dobDropdownSublabel, isDarkMode && { color: '#64748B' }]}>Day</Text>
-                      <Text
-                        style={[
-                          styles.dobDropdownValue,
-                          !birthDay && styles.dobDropdownValuePlaceholder,
-                          isDarkMode && { color: birthDay ? '#F8FAFC' : '#64748B' },
-                        ]}
-                      >
-                        {birthDay ? parseInt(birthDay, 10) : 'Day'}
-                      </Text>
-                    </View>
-                    <IconSymbol
-                      name={activeDobPicker === 'day' ? 'chevron.up' : 'chevron.down'}
-                      size={16}
-                      color={isDarkMode ? '#94A3B8' : '#64748B'}
-                    />
-                  </TouchableOpacity>
-
-                  {/* Year Trigger */}
-                  <TouchableOpacity
-                    style={[
-                      styles.dobDropdownBtn,
-                      { flex: 1.1 },
-                      activeDobPicker === 'year' && styles.dobDropdownBtnActive,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: activeDobPicker === 'year' ? '#0284C7' : '#3A506B' },
-                    ]}
-                    onPress={() => setActiveDobPicker(activeDobPicker === 'year' ? null : 'year')}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.dobDropdownContent}>
-                      <Text style={[styles.dobDropdownSublabel, isDarkMode && { color: '#64748B' }]}>Year</Text>
-                      <Text
-                        style={[
-                          styles.dobDropdownValue,
-                          !birthYear && styles.dobDropdownValuePlaceholder,
-                          isDarkMode && { color: birthYear ? '#F8FAFC' : '#64748B' },
-                        ]}
-                      >
-                        {birthYear || 'Year'}
-                      </Text>
-                    </View>
-                    <IconSymbol
-                      name={activeDobPicker === 'year' ? 'chevron.up' : 'chevron.down'}
-                      size={16}
-                      color={isDarkMode ? '#94A3B8' : '#64748B'}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Dropdown Options Expandable Drawer */}
-                {activeDobPicker === 'month' && (
-                  <View
-                    style={[
-                      styles.dobPickerDrawer,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
-                    ]}
-                  >
-                    <View style={styles.dobDrawerHeader}>
-                      <Text style={[styles.dobDrawerTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                        Select Birth Month
-                      </Text>
-                      <TouchableOpacity onPress={() => setActiveDobPicker(null)}>
-                        <IconSymbol name="xmark" size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
-                      </TouchableOpacity>
-                    </View>
-                    <View style={styles.monthGrid}>
-                      {MONTHS_LIST.map((m) => {
-                        const isSelected = birthMonth === m.value;
-                        return (
-                          <TouchableOpacity
-                            key={m.value}
-                            style={[
-                              styles.monthGridCell,
-                              isSelected && styles.dobCellSelected,
-                              isDarkMode && {
-                                backgroundColor: isSelected ? '#0284C7' : '#1C2541',
-                                borderColor: isSelected ? '#38BDF8' : '#2B3958',
-                              },
-                            ]}
-                            onPress={() => {
-                              const newM = m.value;
-                              const curY = birthYear || '2000';
-                              const maxD = getDaysInMonth(parseInt(curY, 10), parseInt(newM, 10));
-                              const validD = birthDay ? (parseInt(birthDay, 10) > maxD ? String(maxD).padStart(2, '0') : birthDay) : '01';
-                              updateBirthDate(curY, newM, validD);
-                              setActiveDobPicker(!birthDay ? 'day' : null);
-                            }}
-                            activeOpacity={0.75}
-                          >
-                            <Text
-                              style={[
-                                styles.monthGridText,
-                                isSelected && styles.dobCellTextSelected,
-                                isDarkMode && { color: isSelected ? '#FFFFFF' : '#CBD5E1' },
-                              ]}
-                            >
-                              {m.short}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.monthGridSubText,
-                                isSelected && { color: '#E0F2FE' },
-                                isDarkMode && !isSelected && { color: '#64748B' },
-                              ]}
-                            >
-                              {m.value}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
+                    <Text
+                      style={[
+                        styles.dropdownValueText,
+                        !birthDate && styles.dobDropdownValuePlaceholder,
+                        isDarkMode && { color: birthDate ? '#F8FAFC' : '#64748B' },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {birthDate ? formatDisplayDate(birthDate) : 'Select Date of Birth'}
+                    </Text>
                   </View>
-                )}
+                  <IconSymbol
+                    name={isCalendarOpen ? 'chevron.up' : 'chevron.down'}
+                    size={18}
+                    color={isDarkMode ? '#94A3B8' : '#64748B'}
+                  />
+                </TouchableOpacity>
 
-                {activeDobPicker === 'day' && (
+                {/* Dropdown Calendar Drawer */}
+                {isCalendarOpen && (
                   <View
                     style={[
-                      styles.dobPickerDrawer,
+                      styles.calendarCard,
                       isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
                     ]}
                   >
-                    <View style={styles.dobDrawerHeader}>
-                      <Text style={[styles.dobDrawerTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                        Select Birth Day ({birthMonth ? MONTHS_LIST.find((m) => m.value === birthMonth)?.label : 'Current Month'})
-                      </Text>
-                      <TouchableOpacity onPress={() => setActiveDobPicker(null)}>
-                        <IconSymbol name="xmark" size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
+                    {/* Calendar Header with Nav & Selectors */}
+                    <View style={styles.calendarSelectorsRow}>
+                      <TouchableOpacity
+                        style={[styles.calendarNavBtn, isDarkMode && { backgroundColor: '#1C2541' }]}
+                        onPress={handlePrevMonth}
+                        activeOpacity={0.7}
+                      >
+                        <IconSymbol name="chevron.left" size={16} color={isDarkMode ? '#FFFFFF' : '#0F172A'} />
+                      </TouchableOpacity>
+
+                      {/* Month Dropdown Button */}
+                      <TouchableOpacity
+                        style={[
+                          styles.calendarDropdownBtn,
+                          isCalMonthDropdownOpen && styles.calendarDropdownBtnActive,
+                          isDarkMode && { backgroundColor: isCalMonthDropdownOpen ? '#0369A1' : '#1C2541', borderColor: '#3A506B' },
+                        ]}
+                        onPress={() => {
+                          setIsCalMonthDropdownOpen((prev) => !prev);
+                          setIsCalYearDropdownOpen(false);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.calendarDropdownBtnText, isDarkMode && { color: '#F8FAFC' }]}>
+                          {MONTH_NAMES[calMonth]}
+                        </Text>
+                        <IconSymbol
+                          name={isCalMonthDropdownOpen ? 'chevron.up' : 'chevron.down'}
+                          size={14}
+                          color={isDarkMode ? '#94A3B8' : '#64748B'}
+                        />
+                      </TouchableOpacity>
+
+                      {/* Year Dropdown Button */}
+                      <TouchableOpacity
+                        style={[
+                          styles.calendarDropdownBtn,
+                          isCalYearDropdownOpen && styles.calendarDropdownBtnActive,
+                          isDarkMode && { backgroundColor: isCalYearDropdownOpen ? '#0369A1' : '#1C2541', borderColor: '#3A506B' },
+                        ]}
+                        onPress={() => {
+                          setIsCalYearDropdownOpen((prev) => !prev);
+                          setIsCalMonthDropdownOpen(false);
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.calendarDropdownBtnText, isDarkMode && { color: '#F8FAFC' }]}>
+                          {calYear}
+                        </Text>
+                        <IconSymbol
+                          name={isCalYearDropdownOpen ? 'chevron.up' : 'chevron.down'}
+                          size={14}
+                          color={isDarkMode ? '#94A3B8' : '#64748B'}
+                        />
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={[styles.calendarNavBtn, isDarkMode && { backgroundColor: '#1C2541' }]}
+                        onPress={handleNextMonth}
+                        activeOpacity={0.7}
+                      >
+                        <IconSymbol name="chevron.right" size={16} color={isDarkMode ? '#FFFFFF' : '#0F172A'} />
                       </TouchableOpacity>
                     </View>
-                    <View style={styles.dayGrid}>
-                      {Array.from({ length: currentDaysInMonth }, (_, i) => String(i + 1).padStart(2, '0')).map((dStr) => {
-                        const isSelected = birthDay === dStr;
-                        return (
-                          <TouchableOpacity
-                            key={dStr}
-                            style={[
-                              styles.dayGridCell,
-                              isSelected && styles.dobCellSelected,
-                              isDarkMode && {
-                                backgroundColor: isSelected ? '#0284C7' : '#1C2541',
-                                borderColor: isSelected ? '#38BDF8' : '#2B3958',
-                              },
-                            ]}
-                            onPress={() => {
-                              const curY = birthYear || '2000';
-                              const curM = birthMonth || '01';
-                              updateBirthDate(curY, curM, dStr);
-                              setActiveDobPicker(!birthYear ? 'year' : null);
-                            }}
-                            activeOpacity={0.75}
-                          >
-                            <Text
+
+                    {/* Month Selection Grid */}
+                    {isCalMonthDropdownOpen && (
+                      <View style={[styles.calendarMonthGrid, isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' }]}>
+                        {MONTH_NAMES.map((mName, mIdx) => {
+                          const isSelected = calMonth === mIdx;
+                          return (
+                            <TouchableOpacity
+                              key={mName}
                               style={[
-                                styles.dayGridText,
-                                isSelected && styles.dobCellTextSelected,
-                                isDarkMode && { color: isSelected ? '#FFFFFF' : '#CBD5E1' },
+                                styles.calendarMonthGridCell,
+                                isSelected && styles.calendarMonthGridCellActive,
+                                isDarkMode && !isSelected && { backgroundColor: '#152238', borderColor: '#2B3958' },
                               ]}
+                              onPress={() => {
+                                setCalMonth(mIdx);
+                                setIsCalMonthDropdownOpen(false);
+                              }}
+                              activeOpacity={0.75}
                             >
-                              {parseInt(dStr, 10)}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </View>
-                )}
-
-                {activeDobPicker === 'year' && (
-                  <View
-                    style={[
-                      styles.dobPickerDrawer,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
-                    ]}
-                  >
-                    <View style={styles.dobDrawerHeader}>
-                      <Text style={[styles.dobDrawerTitle, isDarkMode && { color: '#F8FAFC' }]}>
-                        Select Birth Year
-                      </Text>
-                      <TouchableOpacity onPress={() => setActiveDobPicker(null)}>
-                        <IconSymbol name="xmark" size={16} color={isDarkMode ? '#94A3B8' : '#64748B'} />
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* Quick Decade Filter Tabs */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.decadeTabsRow}>
-                      {['All', '2000s', '1990s', '1980s', '1970s', '1960s & older'].map((dec) => {
-                        const isSelDec = yearDecadeFilter === dec;
-                        return (
-                          <TouchableOpacity
-                            key={dec}
-                            style={[
-                              styles.decadeTab,
-                              isSelDec && styles.decadeTabActive,
-                              isDarkMode && {
-                                backgroundColor: isSelDec ? '#0284C7' : '#1C2541',
-                                borderColor: isSelDec ? '#38BDF8' : '#2B3958',
-                              },
-                            ]}
-                            onPress={() => setYearDecadeFilter(dec)}
-                          >
-                            <Text
-                              style={[
-                                styles.decadeTabText,
-                                isSelDec && styles.decadeTabTextActive,
-                                isDarkMode && { color: isSelDec ? '#FFFFFF' : '#94A3B8' },
-                              ]}
-                            >
-                              {dec}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-
-                    {/* Scrollable Year Grid */}
-                    <ScrollView style={styles.yearScrollArea} nestedScrollEnabled={true}>
-                      <View style={styles.yearGrid}>
-                        {birthYearsList
-                          .filter((yr) => {
-                            const yNum = parseInt(yr, 10);
-                            if (yearDecadeFilter === '2000s') return yNum >= 2000;
-                            if (yearDecadeFilter === '1990s') return yNum >= 1990 && yNum < 2000;
-                            if (yearDecadeFilter === '1980s') return yNum >= 1980 && yNum < 1990;
-                            if (yearDecadeFilter === '1970s') return yNum >= 1970 && yNum < 1980;
-                            if (yearDecadeFilter === '1960s & older') return yNum < 1970;
-                            return true;
-                          })
-                          .map((yr) => {
-                            const isSelected = birthYear === yr;
-                            const isSenior = parseInt(yr, 10) <= 1966;
-                            return (
-                              <TouchableOpacity
-                                key={yr}
+                              <Text
                                 style={[
-                                  styles.yearGridCell,
-                                  isSelected && styles.dobCellSelected,
-                                  isDarkMode && {
-                                    backgroundColor: isSelected ? '#0284C7' : '#1C2541',
-                                    borderColor: isSelected ? '#38BDF8' : '#2B3958',
-                                  },
+                                  styles.calendarMonthGridText,
+                                  isSelected && styles.calendarMonthGridTextActive,
+                                  isDarkMode && !isSelected && { color: '#E2E8F0' },
                                 ]}
-                                onPress={() => {
-                                  const curM = birthMonth || '01';
-                                  const curD = birthDay || '01';
-                                  const maxD = getDaysInMonth(parseInt(yr, 10), parseInt(curM, 10));
-                                  const validD = parseInt(curD, 10) > maxD ? String(maxD).padStart(2, '0') : curD;
-                                  updateBirthDate(yr, curM, validD);
-                                  setActiveDobPicker(null);
-                                }}
-                                activeOpacity={0.75}
                               >
-                                <Text
-                                  style={[
-                                    styles.yearGridText,
-                                    isSelected && styles.dobCellTextSelected,
-                                    isDarkMode && { color: isSelected ? '#FFFFFF' : '#CBD5E1' },
-                                  ]}
-                                >
-                                  {yr}
-                                </Text>
-                                {isSenior && activeCategory.id === 'senior_citizen_id' && (
-                                  <Text style={styles.yearSeniorTag}>60+</Text>
-                                )}
-                              </TouchableOpacity>
-                            );
-                          })}
+                                {mName.slice(0, 3)}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
-                    </ScrollView>
+                    )}
+
+                    {/* Year Selection List */}
+                    {isCalYearDropdownOpen && (
+                      <ScrollView
+                        style={[styles.calendarYearDropdownContainer, isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' }]}
+                        nestedScrollEnabled={true}
+                        showsVerticalScrollIndicator={true}
+                      >
+                        {YEAR_OPTIONS.map((yr) => {
+                          const isSelected = calYear === yr;
+                          return (
+                            <TouchableOpacity
+                              key={yr}
+                              style={[
+                                styles.calendarYearOption,
+                                isSelected && styles.calendarYearOptionActive,
+                                isDarkMode && !isSelected && { borderBottomColor: '#152238' },
+                              ]}
+                              onPress={() => {
+                                setCalYear(yr);
+                                setIsCalYearDropdownOpen(false);
+                              }}
+                              activeOpacity={0.75}
+                            >
+                              <Text
+                                style={[
+                                  styles.calendarYearOptionText,
+                                  isSelected && styles.calendarYearOptionTextActive,
+                                  isDarkMode && !isSelected && { color: '#E2E8F0' },
+                                ]}
+                              >
+                                {yr}
+                              </Text>
+                              {isSelected && (
+                                <IconSymbol name="checkmark.circle.fill" size={16} color="#FFFFFF" />
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </ScrollView>
+                    )}
+
+                    {/* Weekday Labels */}
+                    <View style={[styles.calendarWeekRow, isDarkMode && { borderBottomColor: '#2B3958' }]}>
+                      {WEEK_DAYS.map((wd, idx) => (
+                        <Text key={idx} style={[styles.calendarWeekLabel, isDarkMode && { color: '#64748B' }]}>
+                          {wd}
+                        </Text>
+                      ))}
+                    </View>
+
+                    {/* Days Grid */}
+                    <View style={styles.calendarDaysGrid}>
+                      {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
+                        <View key={`empty-${idx}`} style={styles.calendarDayCell} />
+                      ))}
+
+                      {Array.from({ length: daysInCalMonth }).map((_, idx) => {
+                        const dayNum = idx + 1;
+                        const mm = String(calMonth + 1).padStart(2, '0');
+                        const dd = String(dayNum).padStart(2, '0');
+                        const isSelected = birthDate === `${calYear}-${mm}-${dd}`;
+
+                        return (
+                          <TouchableOpacity
+                            key={`day-${dayNum}`}
+                            style={[
+                              styles.calendarDayCell,
+                              isSelected && styles.calendarDayCellActive,
+                            ]}
+                            onPress={() => handleSelectDay(dayNum)}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.calendarDayText,
+                                isDarkMode && { color: '#F1F5F9' },
+                                isSelected && styles.calendarDayTextActive,
+                              ]}
+                            >
+                              {dayNum}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   </View>
                 )}
 
-                {/* Senior Citizen Alert if age < 60 */}
                 {activeCategory.id === 'senior_citizen_id' &&
                   birthDate &&
                   (calculateAgeFromDate(birthDate) ?? 0) < 60 && (
@@ -2189,40 +2254,85 @@ export default function IdIssuanceApplicationScreen() {
                   )}
               </View>
 
-              {/* Civil Status Selection */}
+              {/* Civil Status Dropdown */}
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputSublabel, isDarkMode && { color: '#94A3B8' }]}>
                   Civil Status *
                 </Text>
-                <View style={styles.chipsContainer}>
-                  {['Single', 'Married', 'Widowed', 'Separated', 'Divorced'].map((cs) => {
-                    const isSel = civilStatus === cs;
-                    return (
-                      <TouchableOpacity
-                        key={cs}
-                        style={[
-                          styles.chipItemSmall,
-                          isSel && styles.chipItemSelected,
-                          isDarkMode && {
-                            backgroundColor: isSel ? '#0284C7' : '#152238',
-                            borderColor: isSel ? '#38BDF8' : '#3A506B',
-                          },
-                        ]}
-                        onPress={() => setCivilStatus(cs)}
-                      >
-                        <Text
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownTrigger,
+                    isCivilStatusDropdownOpen && styles.dropdownTriggerActive,
+                    isDarkMode && { backgroundColor: '#152238', borderColor: isCivilStatusDropdownOpen ? '#0284C7' : '#3A506B' },
+                  ]}
+                  onPress={() => {
+                    setIsCivilStatusDropdownOpen((prev) => !prev);
+                    setIsCalendarOpen(false);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <IconSymbol
+                      name="person.2.fill"
+                      size={17}
+                      color={isDarkMode ? '#38BDF8' : '#0284C7'}
+                    />
+                    <Text style={[styles.dropdownValueText, isDarkMode && { color: '#F8FAFC' }]}>
+                      {civilStatus || 'Select Civil Status'}
+                    </Text>
+                  </View>
+                  <IconSymbol
+                    name={isCivilStatusDropdownOpen ? 'chevron.up' : 'chevron.down'}
+                    size={18}
+                    color={isDarkMode ? '#94A3B8' : '#64748B'}
+                  />
+                </TouchableOpacity>
+
+                {isCivilStatusDropdownOpen && (
+                  <View
+                    style={[
+                      styles.dropdownMenu,
+                      isDarkMode && { backgroundColor: '#152238', borderColor: '#3A506B' },
+                    ]}
+                  >
+                    {CIVIL_STATUS_OPTIONS.map((cs) => {
+                      const isSelected = civilStatus === cs;
+                      return (
+                        <TouchableOpacity
+                          key={cs}
                           style={[
-                            styles.chipText,
-                            isSel && styles.chipTextSelected,
-                            isDarkMode && { color: isSel ? '#FFFFFF' : '#CBD5E1' },
+                            styles.dropdownOptionItem,
+                            isSelected && styles.dropdownOptionItemActive,
+                            isDarkMode && { borderBottomColor: '#2B3958' },
+                            isDarkMode && isSelected && { backgroundColor: '#1E293B' },
                           ]}
+                          onPress={() => {
+                            setCivilStatus(cs);
+                            setIsCivilStatusDropdownOpen(false);
+                          }}
+                          activeOpacity={0.7}
                         >
-                          {cs}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                          <Text
+                            style={[
+                              styles.dropdownOptionText,
+                              isSelected && styles.dropdownOptionTextActive,
+                              isDarkMode && { color: isSelected ? '#38BDF8' : '#E2E8F0' },
+                            ]}
+                          >
+                            {cs}
+                          </Text>
+                          {isSelected && (
+                            <IconSymbol
+                              name="checkmark.circle.fill"
+                              size={18}
+                              color={isDarkMode ? '#38BDF8' : '#0284C7'}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -3253,7 +3363,7 @@ export default function IdIssuanceApplicationScreen() {
             },
             {
               id: 'READY',
-              label: `Ready / Approved (${applications.filter((a) => a.status === 'Approved' || a.status === 'Ready for Release').length})`,
+              label: `Ready / Approved (${applications.filter((a) => a.status === 'Approved' || a.status === 'Ready to Print' || a.status === 'Ready for Release').length})`,
             },
             {
               id: 'CLAIMED',
@@ -3297,7 +3407,7 @@ export default function IdIssuanceApplicationScreen() {
         ) : applications.filter((app) => {
             if (statusFilter === 'ALL') return true;
             if (statusFilter === 'IN_REVIEW') return app.status === 'Pending Review' || app.status === 'Under Review';
-            if (statusFilter === 'READY') return app.status === 'Approved' || app.status === 'Ready for Release';
+            if (statusFilter === 'READY') return app.status === 'Approved' || app.status === 'Ready to Print' || app.status === 'Ready for Release';
             if (statusFilter === 'CLAIMED') return app.status === 'Claimed';
             return true;
           }).length === 0 ? (
@@ -3334,9 +3444,11 @@ export default function IdIssuanceApplicationScreen() {
           <View style={styles.applicationsListContainer}>
             {applications
               .filter((app) => {
+                // Hide archived Solo Parent applications from resident list per panelist preference
+                if (app.id_category === 'solo_parent_id') return false;
                 if (statusFilter === 'ALL') return true;
                 if (statusFilter === 'IN_REVIEW') return app.status === 'Pending Review' || app.status === 'Under Review';
-                if (statusFilter === 'READY') return app.status === 'Approved' || app.status === 'Ready for Release';
+                if (statusFilter === 'READY') return app.status === 'Approved' || app.status === 'Ready to Print' || app.status === 'Ready for Release';
                 if (statusFilter === 'CLAIMED') return app.status === 'Claimed';
                 return true;
               })
@@ -3346,6 +3458,14 @@ export default function IdIssuanceApplicationScreen() {
                 const badgeInfo = getStatusBadgeInfo(app.status);
                 const isExpanded = expandedAppId === app.id;
                 const isRejected = (app.status || '').toLowerCase().includes('reject');
+                const isReadyForDigitalId =
+                  app.status === 'Ready to Print' ||
+                  app.status === 'Approved' ||
+                  app.status === 'Ready for Release' ||
+                  app.status === 'Claimed' ||
+                  (app.status || '').toLowerCase().includes('ready') ||
+                  (app.status || '').toLowerCase().includes('print') ||
+                  (app.status || '').toLowerCase().includes('approv');
 
                 return (
                   <View
@@ -3506,6 +3626,42 @@ export default function IdIssuanceApplicationScreen() {
                       </View>
                     )}
 
+                    {/* "Show Digital ID" Action Banner (Prominent Button when Ready to Print / Approved / Ready for Release) */}
+                    {isReadyForDigitalId && (
+                      <TouchableOpacity
+                        style={[
+                          styles.showDigitalIdBannerBtn,
+                          isDarkMode && { backgroundColor: '#0B2545', borderColor: '#1D4ED8' },
+                        ]}
+                        onPress={() => handleShowDigitalId(app)}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.showDigitalIdIconBox}>
+                          <IconSymbol name="creditcard.fill" size={18} color="#FFFFFF" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Text style={[styles.showDigitalIdTitleText, isDarkMode && { color: '#60A5FA' }]}>
+                              Show Digital ID
+                            </Text>
+                            <View style={styles.digitalIdReadyBadge}>
+                              <Text style={styles.digitalIdReadyBadgeText}>
+                                {(app.status || '').toLowerCase().includes('print') ? 'READY TO PRINT' : 'READY'}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={[styles.showDigitalIdSubText, isDarkMode && { color: '#93C5FD' }]}>
+                            {(app.status || '').toLowerCase().includes('print')
+                              ? 'Admin changed status to Ready to Print • Tap to view Digital ID'
+                              : 'Official Municipal Digital Credential Available'}
+                          </Text>
+                        </View>
+                        <View style={[styles.showDigitalIdArrowBox, isDarkMode && { backgroundColor: '#1E3A8A' }]}>
+                          <IconSymbol name="chevron.right" size={14} color={isDarkMode ? '#93C5FD' : '#0284C7'} />
+                        </View>
+                      </TouchableOpacity>
+                    )}
+
                     {/* Expandable Claim Voucher / Details Drawer */}
                     {isExpanded && (
                       <View
@@ -3627,6 +3783,17 @@ export default function IdIssuanceApplicationScreen() {
                             <Text style={styles.reviewNotesLabel}>Bureau Officer Notes:</Text>
                             <Text style={styles.reviewNotesText}>{app.review_notes}</Text>
                           </View>
+                        )}
+
+                        {isReadyForDigitalId && (
+                          <TouchableOpacity
+                            style={styles.drawerDigitalIdBtn}
+                            onPress={() => handleShowDigitalId(app)}
+                            activeOpacity={0.85}
+                          >
+                            <IconSymbol name="creditcard.fill" size={15} color="#FFFFFF" />
+                            <Text style={styles.drawerDigitalIdBtnText}>Open Official Civentral Citizen Card</Text>
+                          </TouchableOpacity>
                         )}
                       </View>
                     )}
@@ -3788,6 +3955,13 @@ export default function IdIssuanceApplicationScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* OFFICIAL CIVENTRAL CITIZEN CARD MODAL */}
+      <DigitalIdCardModal
+        visible={isDigitalIdModalVisible}
+        onClose={() => setIsDigitalIdModalVisible(false)}
+        data={selectedDigitalIdData}
+      />
     </SafeAreaView>
   );
 }
@@ -5345,174 +5519,215 @@ const styles = StyleSheet.create({
   ageBadgeTextWarning: {
     color: '#B45309',
   },
-  dobDropdownRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-  },
-  dobDropdownBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    dropdownTrigger: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  dobDropdownBtnActive: {
+  dropdownTriggerActive: {
     borderColor: '#0284C7',
     backgroundColor: '#F0F9FF',
   },
-  dobDropdownContent: {
-    flex: 1,
-  },
-  dobDropdownSublabel: {
-    fontSize: 9.5,
-    color: '#94A3B8',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 1,
-  },
-  dobDropdownValue: {
-    fontSize: 13,
-    fontWeight: '700',
+  dropdownValueText: {
+    fontSize: 14,
     color: '#0F172A',
+    fontWeight: '600',
   },
   dobDropdownValuePlaceholder: {
     color: '#94A3B8',
     fontWeight: '500',
   },
-  dobPickerDrawer: {
-    backgroundColor: '#F8FAFC',
+  dropdownMenu: {
+    marginTop: 6,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 12,
-    marginBottom: 10,
+    backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  dobDrawerHeader: {
+  dropdownOptionItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
-    paddingBottom: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#F1F5F9',
   },
-  dobDrawerTitle: {
-    fontSize: 12,
-    fontWeight: '800',
+  dropdownOptionItemActive: {
+    backgroundColor: '#E0F2FE',
+  },
+  dropdownOptionText: {
+    fontSize: 14,
+    color: '#334155',
+    fontWeight: '500',
+  },
+  dropdownOptionTextActive: {
+    color: '#0284C7',
+    fontWeight: '700',
+  },
+  calendarCard: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  calendarSelectorsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 6,
+  },
+  calendarNavBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  calendarDropdownBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  calendarDropdownBtnActive: {
+    borderColor: '#0284C7',
+    backgroundColor: '#E0F2FE',
+  },
+  calendarDropdownBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
     color: '#0F172A',
   },
-  monthGrid: {
+  calendarMonthGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
   },
-  monthGridCell: {
+  calendarMonthGridCell: {
     width: '23%',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
     paddingVertical: 8,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  monthGridText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  monthGridSubText: {
-    fontSize: 9,
-    color: '#94A3B8',
-    marginTop: 1,
-  },
-  dayGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 5,
-  },
-  dayGridCell: {
-    width: '12.8%',
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    borderRadius: 6,
-    paddingVertical: 7,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  dayGridText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#1E293B',
-  },
-  dobCellSelected: {
+  calendarMonthGridCellActive: {
     backgroundColor: '#0284C7',
     borderColor: '#0284C7',
   },
-  dobCellTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '800',
+  calendarMonthGridText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
   },
-  decadeTabsRow: {
+  calendarMonthGridTextActive: {
+    color: '#FFFFFF',
+  },
+  calendarYearDropdownContainer: {
+    maxHeight: 180,
+    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+    padding: 6,
+  },
+  calendarYearOption: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  calendarYearOptionActive: {
+    backgroundColor: '#0284C7',
+  },
+  calendarYearOptionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  calendarYearOptionTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  calendarWeekRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
     marginBottom: 8,
   },
-  decadeTab: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginRight: 6,
-  },
-  decadeTabActive: {
-    backgroundColor: '#0284C7',
-    borderColor: '#0284C7',
-  },
-  decadeTabText: {
+  calendarWeekLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: '#94A3B8',
+    width: '13%',
+    textAlign: 'center',
   },
-  decadeTabTextActive: {
-    color: '#FFFFFF',
-  },
-  yearScrollArea: {
-    maxHeight: 180,
-  },
-  yearGrid: {
+  calendarDaysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 6,
   },
-  yearGridCell: {
-    width: '23%',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    paddingVertical: 7,
+  calendarDayCell: {
+    width: '14.28%',
+    aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 8,
+    marginVertical: 2,
   },
-  yearGridText: {
-    fontSize: 12,
-    fontWeight: '700',
+  calendarDayCellActive: {
+    backgroundColor: '#0284C7',
+  },
+  calendarDayText: {
+    fontSize: 13,
+    fontWeight: '600',
     color: '#1E293B',
   },
-  yearSeniorTag: {
-    fontSize: 8,
-    color: '#059669',
+  calendarDayTextActive: {
+    color: '#FFFFFF',
     fontWeight: '800',
-    marginTop: 1,
   },
   seniorAlertBox: {
     flexDirection: 'row',
@@ -5866,5 +6081,90 @@ const styles = StyleSheet.create({
   sigPreviewImg: {
     width: '100%',
     height: '100%',
+  },
+  showDigitalIdBannerBtn: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1.5,
+    borderColor: '#93C5FD',
+    borderRadius: 14,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 10,
+    marginBottom: 6,
+    shadowColor: '#0284C7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  showDigitalIdIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#0284C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  showDigitalIdTitleText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0369A1',
+    letterSpacing: 0.2,
+  },
+  digitalIdReadyBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  digitalIdReadyBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  showDigitalIdSubText: {
+    fontSize: 11,
+    color: '#0284C7',
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  showDigitalIdArrowBox: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#E0F2FE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerDigitalIdBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#0F4C81',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginTop: 12,
+    shadowColor: '#0F4C81',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  drawerDigitalIdBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });

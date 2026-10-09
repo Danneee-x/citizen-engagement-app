@@ -1739,7 +1739,7 @@ export function VerifyCitizenScreen() {
                 <Text style={[styles.secondaryButtonText, isDarkMode && { color: '#CBD5E1' }]}>Back to Dashboard</Text>
               </TouchableOpacity>
             </View>
-          ) : (appStatus === 'Approved' && appData) ? (
+          ) : ((appStatus === 'Approved' || appStatus === 'Ready to Print' || appStatus === 'Ready_To_Print' || appStatus === 'Ready for Release' || appStatus === 'Ready_For_Release' || (appStatus || '').toLowerCase().includes('approv') || (appStatus || '').toLowerCase().includes('print') || (appStatus || '').toLowerCase().includes('ready')) && appData) ? (
             /* GUARD: OFFICIAL CITIZEN UNIFIED RESIDENT CARD & CIVIC DIRECTORY */
             <View style={{ width: '100%', gap: 16 }}>
               {/* Header Status Bar */}
@@ -1771,7 +1771,7 @@ export function VerifyCitizenScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 15, fontWeight: '800', color: isDarkMode ? '#A7F3D0' : '#065F46' }}>
-                    Official Resident ID Issued
+                    {(appStatus || '').toLowerCase().includes('print') ? 'Digital Resident ID Ready to Print' : 'Official Resident ID Issued'}
                   </Text>
                   <Text style={{ fontSize: 12, color: isDarkMode ? '#D1FAE5' : '#047857', marginTop: 1 }}>
                     Certified by City Government of Caloocan
@@ -1779,7 +1779,7 @@ export function VerifyCitizenScreen() {
                 </View>
                 <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                   <View style={{ backgroundColor: '#10B981', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                    <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>VERIFIED</Text>
+                    <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>{(appStatus || '').toLowerCase().includes('print') ? 'READY TO PRINT' : 'VERIFIED'}</Text>
                   </View>
                   <View
                     style={{

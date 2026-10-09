@@ -35,7 +35,7 @@ export interface IdApplicationRecord {
   photo_2x2_url?: string | null;
   support_doc_name?: string | null;
   support_doc_url?: string | null;
-  status: 'Pending Review' | 'Under Review' | 'Approved' | 'Ready for Release' | 'Claimed' | 'Rejected' | string;
+  status: 'Pending Review' | 'Under Review' | 'Approved' | 'Ready to Print' | 'Ready for Release' | 'Claimed' | 'Rejected' | string;
   review_notes?: string | null;
   rejection_reason?: string | null;
   reviewed_by?: string | null;
@@ -86,13 +86,17 @@ export class IdIssuanceService {
 
     return isLocalhost
       ? [
+          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
+          'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
           'http://localhost/citizen-backend/api/citizen/submit-id-application.php',
           'http://127.0.0.1/citizen-backend/api/citizen/submit-id-application.php',
           `${API_BASE_URL}/submit-id-application.php`,
         ]
       : [
           `${API_BASE_URL}/submit-id-application.php`,
+          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
           'http://localhost/citizen-backend/api/citizen/submit-id-application.php',
+          'http://10.0.2.2/civentral-citizen-information-and-engagement/api/citizen/submit-id-application.php',
           'http://10.0.2.2/citizen-backend/api/citizen/submit-id-application.php',
           'http://192.168.100.15/citizen-backend/api/citizen/submit-id-application.php',
         ];
