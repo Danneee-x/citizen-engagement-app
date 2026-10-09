@@ -605,8 +605,7 @@ export function HomeScreen() {
               bannerBg = dm ? "#047857" : "#059669";
               iconName = "person.crop.circle.fill";
               bannerTitle = "View Citizen Account";
-              const idNumber = verificationData.citizen_id_number || userProfile.citizenId || 'CAL-2026-000003';
-              bannerSub = idNumber ? `Verified Resident • ID: ${idNumber}` : "Verified Resident • Caloocan City";
+              bannerSub = "Official profile and digital credentials";
               targetRoute = "/(tabs)/profile";
             } else if (vStatus === 'Rejected') {
               bannerBg = "#DC2626";
