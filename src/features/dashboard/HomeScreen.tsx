@@ -3,6 +3,7 @@ import { Badge } from "@/src/components/ui/Badge";
 import { useTheme } from "@/src/context/ThemeContext";
 import { AuthService } from "@/src/services/auth-service";
 import { NotificationService } from "@/src/services/notification-service";
+import { FormattedAlertBody } from "@/src/features/notifications/FormattedAlertBody";
 import {
     CitizenProfileData,
     ProfileService,
@@ -1179,9 +1180,11 @@ export function HomeScreen() {
                     dm && { backgroundColor: "#3A506B" },
                   ]}
                 />
-                <Text style={[styles.ancModalBody, dm && { color: "#CBD5E1" }]}>
-                  {selectedAnnouncement.fullBody}
-                </Text>
+                <FormattedAlertBody
+                  html={selectedAnnouncement.fullBody}
+                  fallbackText={selectedAnnouncement.summary}
+                  isDarkMode={dm}
+                />
               </ScrollView>
               <TouchableOpacity
                 style={styles.primaryModalBtn}
