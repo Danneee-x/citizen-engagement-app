@@ -606,7 +606,7 @@ export function HomeScreen() {
               iconName = "person.crop.circle.fill";
               bannerTitle = "View Citizen Account";
               const idNumber = verificationData.citizen_id_number || userProfile.citizenId || 'CAL-2026-000003';
-              bannerSub = `ID: ${idNumber} • Tap to view profile & credentials`;
+              bannerSub = idNumber ? `Verified Resident • ID: ${idNumber}` : "Verified Resident • Caloocan City";
               targetRoute = "/(tabs)/profile";
             } else if (vStatus === 'Rejected') {
               bannerBg = "#DC2626";
@@ -647,11 +647,15 @@ export function HomeScreen() {
                       <Text style={styles.registerNowBannerText}>
                         {bannerTitle}
                       </Text>
-                      {isGuestMode && (
+                      {isGuestMode ? (
                         <View style={{ backgroundColor: "rgba(255,255,255,0.22)", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
                           <Text style={{ color: "#FFFFFF", fontSize: 9.5, fontWeight: "700", letterSpacing: 0.4 }}>LOGIN REQUIRED</Text>
                         </View>
-                      )}
+                      ) : (vStatus === 'Approved' || vStatus.toLowerCase().includes('approv') || vStatus.toLowerCase().includes('ready') || vStatus.toLowerCase().includes('print')) ? (
+                        <View style={{ backgroundColor: "rgba(255,255,255,0.25)", paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ color: "#FFFFFF", fontSize: 9.5, fontWeight: "700", letterSpacing: 0.4 }}>VERIFIED</Text>
+                        </View>
+                      ) : null}
                     </View>
                     <Text style={styles.registerNowBannerSub} numberOfLines={1}>
                       {bannerSub}
