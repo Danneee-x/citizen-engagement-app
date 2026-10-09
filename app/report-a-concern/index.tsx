@@ -246,19 +246,28 @@ export default function ReportConcernScreen() {
             status = 'Closed';
           }
 
-          const createdDate = r.created_at ? new Date(r.created_at) : new Date();
-          const dateStr = createdDate.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          }) + ' • ' + createdDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          const formatPhilippineDateTime = (rawDate?: string | null, fallbackFormatted?: string): string => {
+            if (fallbackFormatted && fallbackFormatted.includes('•')) return fallbackFormatted;
+            if (!rawDate) {
+              const now = new Date();
+              return now.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }) +
+                ' • ' + now.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+            }
+            if (rawDate.includes('•')) return rawDate;
+            let parsedIso = rawDate;
+            if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawDate)) {
+              parsedIso = rawDate.replace(' ', 'T') + '+08:00';
+            } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(rawDate)) {
+              parsedIso = rawDate + '+08:00';
+            }
+            const d = new Date(parsedIso);
+            if (isNaN(d.getTime())) return rawDate;
+            return d.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }) +
+              ' • ' + d.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+          };
 
-          const updatedDate = r.updated_at ? new Date(r.updated_at) : createdDate;
-          const lastUpdateStr = updatedDate.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          }) + ' • ' + updatedDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          const dateStr = formatPhilippineDateTime(r.created_at_iso || r.created_at, r.created_at_formatted);
+          const lastUpdateStr = formatPhilippineDateTime(r.updated_at_iso || r.updated_at, r.updated_at_formatted || dateStr);
 
           // Build updates timeline
           const updates: DepartmentUpdate[] = [
@@ -436,56 +445,47 @@ export default function ReportConcernScreen() {
         })),
       });
 
-      if (res && (res.data || res.ticket_number)) {
-        const ticketNum = res.data?.ticket_number || res.ticket_number || `CAL-REP-${Date.now()}`;
-        const subDate = res.data?.submission_date || new Date().toLocaleString();
-        const curStatus = res.data?.status || 'Routed';
-        const detCategory = res.data?.detected_category || selectedCategory;
-        const prio = res.data?.priority || 'Medium';
-        const simConcerns = res.data?.similar_concerns || 'No duplicate reports found';
-        const recDept = res.data?.recommended_department || 'Citizenship Information & Engagement (CIE)';
-        const confScore = res.data?.confidence_score || '98% - Gemini AI Multi-Modal Engine';
-
+      if (res && res.data) {
         setSubmittedData({
-          referenceNumber: ticketNum,
-          submissionDate: subDate,
-          currentStatus: curStatus,
-          detectedCategory: detCategory,
-          priority: prio,
-          similarConcerns: simConcerns,
-          recommendedDepartment: recDept,
-          confidenceScore: confScore,
+          referenceNumber: res.data.ticket_number,
+          submissionDate: res.data.submission_date,
+          currentStatus: res.data.status,
+          detectedCategory: res.data.detected_category,
+          priority: res.data.priority,
+          similarConcerns: res.data.similar_concerns,
+          recommendedDepartment: res.data.recommended_department,
+          confidenceScore: res.data.confidence_score,
         });
 
         // Prepend to reports list
         const newReportItem: CitizenReport = {
           id: `rep-${Date.now()}`,
-          referenceNumber: ticketNum,
+          referenceNumber: res.data.ticket_number,
           title: title.trim(),
           category: selectedCategory,
-          dateSubmitted: subDate,
+          dateSubmitted: res.data.submission_date,
           currentStatus: 'Automatically Routed',
-          lastUpdate: subDate,
+          lastUpdate: res.data.submission_date,
           description: description.trim(),
           barangay: barangay || 'Caloocan City',
           address: location.trim(),
-          priority: prio,
-          assignedDepartment: recDept,
-          aiDetectedCategory: detCategory,
-          aiConfidenceScore: confScore,
+          priority: res.data.priority,
+          assignedDepartment: res.data.recommended_department,
+          aiDetectedCategory: res.data.detected_category,
+          aiConfidenceScore: res.data.confidence_score,
           attachments: photos.map((p) => ({ name: p.name, size: p.size, type: 'image/jpeg', uri: p.uri })),
           departmentUpdates: [
             {
               id: `up-new-1`,
-              timestamp: subDate,
+              timestamp: res.data.submission_date,
               department: 'Central Intake & Triage Desk',
-              message: `Concern filed by citizen. Reference ${ticketNum} assigned.`,
+              message: `Concern filed by citizen. Reference ${res.data.ticket_number} assigned.`,
             },
             {
               id: `up-new-2`,
-              timestamp: subDate,
+              timestamp: res.data.submission_date,
               department: 'Gemini AI Multi-Modal Engine',
-              message: `Automated AI classification: ${detCategory} (${prio} Priority). Routed to ${recDept}.`,
+              message: `Automated AI classification: ${res.data.detected_category} (${res.data.priority} Priority). Routed to ${res.data.recommended_department}.`,
             },
           ],
         };
@@ -537,10 +537,11 @@ export default function ReportConcernScreen() {
       const now = new Date();
       const dateStr =
         now.toLocaleDateString('en-US', {
+          timeZone: 'Asia/Manila',
           month: 'short',
           day: 'numeric',
           year: 'numeric',
-        }) + ` • ` + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }) + ` • ` + now.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
 
       const updatedReport: CitizenReport = {
         ...selectedReport,
