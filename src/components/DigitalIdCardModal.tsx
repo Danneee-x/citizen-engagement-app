@@ -17,7 +17,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import QRCode from 'react-native-qrcode-svg';
-import Svg, { Defs, LinearGradient as SvgGradient, Path as SvgPath, Stop as SvgStop } from 'react-native-svg';
+import Svg, { Defs, LinearGradient as SvgGradient, Path as SvgPath, Stop as SvgStop, SvgXml } from 'react-native-svg';
 import { IconSymbol } from '@/src/components/ui/icon-symbol';
 
 export interface DigitalIdCardData {
@@ -226,6 +226,10 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
   // Asset URLs
   const resolvedPhoto = data.photo_1x1_url || data.photo_2x2_url || data.photo_url || null;
   const resolvedSignature = data.signature_photo_url || data.signature_url || null;
+  const isSvgSignature = Boolean(resolvedSignature && resolvedSignature.startsWith('data:image/svg+xml'));
+  const svgXmlContent = isSvgSignature && resolvedSignature
+    ? decodeURIComponent(resolvedSignature.replace(/^data:image\/svg\+xml(?:;utf8)?,/, ''))
+    : '';
 
   // Base64 Logo helper for HTML print
   const getBase64Logo = async (): Promise<string> => {
@@ -323,7 +327,12 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
             ${resolvedPhoto ? `<img src="${photoImgSrc}" />` : initials}
           </div>
           <div>
-            <div class="sig-box">${resolvedSignature ? `<img src="${resolvedSignature}" style="max-height: 100%; max-width: 100%;" />` : 'Digital Signature'}</div>
+            <div class="sig-box">
+              ${resolvedSignature 
+                ? `<img src="${resolvedSignature}" style="max-height: 100%; max-width: 100%; object-fit: contain;" />` 
+                : `<span style="font-family: 'Brush Script MT', 'Snell Roundhand', cursive; font-size: 13px; color: #1E3A8A; font-weight: 700; font-style: italic;">${data.e_signature_name || fullNameFormatted}</span>`
+              }
+            </div>
             <div class="sig-lbl">Cardholder Signature</div>
             <div class="res-tag">${classificationTitle}</div>
           </div>
@@ -532,13 +541,19 @@ export function DigitalIdCardModal({ visible, onClose, data }: DigitalIdCardModa
 
                     {/* Signature Box */}
                     <View style={styles.cardSignatureBox}>
-                      {resolvedSignature && !signatureError ? (
+                      {isSvgSignature && svgXmlContent ? (
+                        <SvgXml xml={svgXmlContent} width="92%" height="85%" />
+                      ) : resolvedSignature && !signatureError ? (
                         <Image
                           source={{ uri: resolvedSignature }}
                           style={{ width: '90%', height: '85%' }}
                           resizeMode="contain"
                           onError={() => setSignatureError(true)}
                         />
+                      ) : (data.e_signature_name || fullNameFormatted) ? (
+                        <Text style={styles.cardSignatureScript} numberOfLines={1}>
+                          {data.e_signature_name || fullNameFormatted}
+                        </Text>
                       ) : (
                         <Text style={styles.cardSignaturePlaceholder}>Digital Signature</Text>
                       )}
@@ -929,6 +944,15 @@ const styles = StyleSheet.create({
     fontSize: 6.8,
     color: '#94A3B8',
     fontStyle: 'italic',
+  },
+  cardSignatureScript: {
+    fontSize: 9.5,
+    fontFamily: Platform.OS === 'ios' ? 'Snell Roundhand' : 'serif',
+    fontStyle: 'italic',
+    fontWeight: '700',
+    color: '#1E3A8A',
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   cardSignatureLabel: {
     fontSize: 5.5,

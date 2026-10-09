@@ -400,6 +400,7 @@ export default function IdIssuanceApplicationScreen() {
       photo_url: app.photo_2x2_url || app.primary_doc_url,
       photo_2x2_url: app.photo_2x2_url,
       signature_url: app.signature_url,
+      e_signature_name: app.e_signature_name,
       id_category: app.id_category,
       id_title: app.id_title,
       status: app.status,
@@ -739,14 +740,14 @@ export default function IdIssuanceApplicationScreen() {
 
   // Universal Applicant Signature or E-Signature State
   const [signatureMode, setSignatureMode] = useState<'upload' | 'esignature'>('esignature');
-  const [signatureFile, setSignatureFile] = useState<{ name: string; size: string } | null>(null);
+  const [signatureFile, setSignatureFile] = useState<{ name: string; size: string; uri?: string } | null>(null);
   const [eSignatureName, setESignatureName] = useState('');
   const [eSignatureAgreed, setESignatureAgreed] = useState(true);
 
   // Requirements Upload State
-  const [idDocFile, setIdDocFile] = useState<{ name: string; size: string } | null>(null);
-  const [supportDocFile, setSupportDocFile] = useState<{ name: string; size: string } | null>(null);
-  const [photoFile, setPhotoFile] = useState<{ name: string; size: string } | null>(null);
+  const [idDocFile, setIdDocFile] = useState<{ name: string; size: string; uri?: string } | null>(null);
+  const [supportDocFile, setSupportDocFile] = useState<{ name: string; size: string; uri?: string } | null>(null);
+  const [photoFile, setPhotoFile] = useState<{ name: string; size: string; uri?: string } | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -980,13 +981,16 @@ export default function IdIssuanceApplicationScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 0.85,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        const dataUri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
         const doc = {
           name: asset.fileName || `${type}_document_${Date.now()}.jpg`,
           size: `${Math.round((asset.fileSize || 1024 * 500) / 1024)} KB`,
+          uri: dataUri,
         };
 
         if (type === 'id') setIdDocFile(doc);
@@ -1128,10 +1132,12 @@ export default function IdIssuanceApplicationScreen() {
       emergency_contact_phone: emergencyContactPhone.trim(),
       emergency_contact_relation: emergencyContactRelation.trim() || 'Next of Kin',
       signature_mode: signatureMode,
-      signature_url: signatureMode === 'esignature' ? drawnSignatureUri : (signatureFile?.name || null),
+      signature_url: signatureMode === 'esignature' ? drawnSignatureUri : (signatureFile?.uri || signatureFile?.name || null),
       e_signature_name: effectiveSigner,
       issuing_bureau: activeCategory.issuingBureau,
       primary_doc_name: idDocFile?.name || activeCategory.primaryDocName,
+      primary_doc_url: idDocFile?.uri || null,
+      photo_2x2_url: photoFile?.uri || null,
       claim_office: activeCategory.claimOffice,
       estimated_turnaround: activeCategory.estimatedTurnaround,
       citizen_user_id: currentUserId,
@@ -1161,7 +1167,7 @@ export default function IdIssuanceApplicationScreen() {
       },
       signatureMode,
       signatureSigner: signatureMode === 'esignature' ? effectiveSigner! : (signatureFile?.name || 'Attached Signature File'),
-      signaturePreview: signatureMode === 'esignature' ? drawnSignatureUri : null,
+      signaturePreview: signatureMode === 'esignature' ? drawnSignatureUri : (signatureFile?.uri || null),
       processingUpdates: `Your ${activeCategory.name} application has been successfully transmitted to the ${activeCategory.issuingBureau}. Verification officers will evaluate submitted credentials prior to physical/digital card production.`,
       releaseClaimInfo: {
         claimCenter: activeCategory.claimOffice,
@@ -3110,22 +3116,29 @@ export default function IdIssuanceApplicationScreen() {
                   </View>
 
                   {signatureFile ? (
-                    <View
-                      style={[
-                        styles.docAttachedRow,
-                        isDarkMode && { backgroundColor: '#0E1726', borderColor: '#2B3958' },
-                      ]}
-                    >
-                      <IconSymbol name="pencil" size={18} color="#10B981" />
-                      <Text
-                        style={[styles.docAttachedName, isDarkMode && { color: '#F8FAFC' }]}
-                        numberOfLines={1}
+                    <View style={{ gap: 8 }}>
+                      <View
+                        style={[
+                          styles.docAttachedRow,
+                          isDarkMode && { backgroundColor: '#0E1726', borderColor: '#2B3958' },
+                        ]}
                       >
-                        {signatureFile.name} ({signatureFile.size})
-                      </Text>
-                      <TouchableOpacity onPress={() => setSignatureFile(null)}>
-                        <IconSymbol name="trash.fill" size={15} color="#EF4444" />
-                      </TouchableOpacity>
+                        <IconSymbol name="pencil" size={18} color="#10B981" />
+                        <Text
+                          style={[styles.docAttachedName, isDarkMode && { color: '#F8FAFC' }]}
+                          numberOfLines={1}
+                        >
+                          {signatureFile.name} ({signatureFile.size})
+                        </Text>
+                        <TouchableOpacity onPress={() => setSignatureFile(null)}>
+                          <IconSymbol name="trash.fill" size={15} color="#EF4444" />
+                        </TouchableOpacity>
+                      </View>
+                      {signatureFile.uri ? (
+                        <View style={{ height: 68, backgroundColor: '#FFFFFF', borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', padding: 6, alignItems: 'center', justifyContent: 'center' }}>
+                          <Image source={{ uri: signatureFile.uri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                        </View>
+                      ) : null}
                     </View>
                   ) : (
                     <TouchableOpacity
@@ -3271,22 +3284,29 @@ export default function IdIssuanceApplicationScreen() {
                 </Text>
 
                 {photoFile ? (
-                  <View
-                    style={[
-                      styles.docAttachedRow,
-                      isDarkMode && { backgroundColor: '#152238', borderColor: '#2B3958' },
-                    ]}
-                  >
-                    <IconSymbol name="photo.fill" size={18} color="#10B981" />
-                    <Text
-                      style={[styles.docAttachedName, isDarkMode && { color: '#F8FAFC' }]}
-                      numberOfLines={1}
+                  <View style={{ gap: 8 }}>
+                    <View
+                      style={[
+                        styles.docAttachedRow,
+                        isDarkMode && { backgroundColor: '#152238', borderColor: '#2B3958' },
+                      ]}
                     >
-                      {photoFile.name} ({photoFile.size})
-                    </Text>
-                    <TouchableOpacity onPress={() => setPhotoFile(null)}>
-                      <IconSymbol name="trash.fill" size={15} color="#EF4444" />
-                    </TouchableOpacity>
+                      <IconSymbol name="photo.fill" size={18} color="#10B981" />
+                      <Text
+                        style={[styles.docAttachedName, isDarkMode && { color: '#F8FAFC' }]}
+                        numberOfLines={1}
+                      >
+                        {photoFile.name} ({photoFile.size})
+                      </Text>
+                      <TouchableOpacity onPress={() => setPhotoFile(null)}>
+                        <IconSymbol name="trash.fill" size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    </View>
+                    {photoFile.uri ? (
+                      <View style={{ height: 110, width: 110, alignSelf: 'center', backgroundColor: '#FFFFFF', borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', padding: 4, alignItems: 'center', justifyContent: 'center' }}>
+                        <Image source={{ uri: photoFile.uri }} style={{ width: '100%', height: '100%', borderRadius: 6 }} resizeMode="cover" />
+                      </View>
+                    ) : null}
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -3757,7 +3777,7 @@ export default function IdIssuanceApplicationScreen() {
                         {(app.signature_url || app.e_signature_name) && (
                           <View style={[styles.appSignatureBox, isDarkMode && { backgroundColor: '#1A2942' }]}>
                             <Text style={[styles.appSignatureLabel, isDarkMode && { color: '#6EE7B7' }]}>Official Cardholder Signature:</Text>
-                            {app.signature_url && app.signature_url.startsWith('data:image') ? (
+                            {app.signature_url && (app.signature_url.startsWith('data:image') || app.signature_url.startsWith('http')) ? (
                               <View style={styles.voucherSigImgWrapper}>
                                 <Image
                                   source={{ uri: app.signature_url }}

@@ -72,6 +72,8 @@ export interface SubmitIdApplicationPayload {
   signature_mode?: 'upload' | 'esignature' | string | null;
   issuing_bureau: string;
   primary_doc_name?: string;
+  primary_doc_url?: string | null;
+  photo_2x2_url?: string | null;
   claim_office: string;
   estimated_turnaround: string;
   citizen_user_id?: number | null;
