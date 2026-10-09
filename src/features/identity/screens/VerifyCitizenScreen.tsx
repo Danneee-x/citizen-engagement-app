@@ -1734,713 +1734,261 @@ export function VerifyCitizenScreen() {
                 <Text style={[styles.secondaryButtonText, isDarkMode && { color: '#CBD5E1' }]}>Back to Dashboard</Text>
               </TouchableOpacity>
             </View>
-          ) : ((appStatus === 'Approved' || appStatus === 'Ready to Print' || appStatus === 'Ready_To_Print' || appStatus === 'Ready for Release' || appStatus === 'Ready_For_Release' || (appStatus || '').toLowerCase().includes('approv') || (appStatus || '').toLowerCase().includes('print') || (appStatus || '').toLowerCase().includes('ready')) && appData) ? (
-            /* GUARD: OFFICIAL CITIZEN UNIFIED RESIDENT CARD & CIVIC DIRECTORY */
+                    ) : ((appStatus === 'Approved' || appStatus === 'Ready to Print' || appStatus === 'Ready_To_Print' || appStatus === 'Ready for Release' || appStatus === 'Ready_For_Release' || (appStatus || '').toLowerCase().includes('approv') || (appStatus || '').toLowerCase().includes('print') || (appStatus || '').toLowerCase().includes('ready')) && appData) ? (
+            /* GUARD: OFFICIAL CITIZEN VERIFICATION APPROVED STATUS & SERVICES DIRECTORY */
             <View style={{ width: '100%', gap: 16 }}>
-              {/* Header Status Bar */}
+              {/* Header Verified Status Card */}
               <View
                 style={[
                   styles.card,
                   {
                     backgroundColor: isDarkMode ? '#064E3B' : '#ECFDF5',
                     borderColor: '#10B981',
-                    borderWidth: 1,
-                    padding: 14,
+                    borderWidth: 1.5,
+                    padding: 18,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 12,
+                    gap: 14,
                   },
                 ]}
               >
                 <View
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
                     backgroundColor: '#10B981',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <IconSymbol name="checkmark.seal.fill" size={24} color="#FFFFFF" />
+                  <IconSymbol name="checkmark.seal.fill" size={28} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: isDarkMode ? '#A7F3D0' : '#065F46' }}>
-                    {(appStatus || '').toLowerCase().includes('print') ? 'Digital Resident ID Ready to Print' : 'Official Resident ID Issued'}
+                  <Text style={{ fontSize: 16, fontWeight: '800', color: isDarkMode ? '#A7F3D0' : '#065F46' }}>
+                    Citizen Verification Approved
                   </Text>
-                  <Text style={{ fontSize: 12, color: isDarkMode ? '#D1FAE5' : '#047857', marginTop: 1 }}>
-                    Certified by City Government of Caloocan
+                  <Text style={{ fontSize: 12.5, color: isDarkMode ? '#D1FAE5' : '#047857', marginTop: 2 }}>
+                    Official Resident of Caloocan City
                   </Text>
                 </View>
-                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                  <View style={{ backgroundColor: '#10B981', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-                    <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>{(appStatus || '').toLowerCase().includes('print') ? 'READY TO PRINT' : 'VERIFIED'}</Text>
-                  </View>
+                <View
+                  style={{
+                    backgroundColor: '#10B981',
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    borderRadius: 12,
+                  }}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '800' }}>VERIFIED</Text>
+                </View>
+              </View>
+
+              {/* Verified Credentials Summary Card */}
+              <View
+                style={[
+                  styles.card,
+                  { backgroundColor: dmCard, borderColor: dmBorder },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                  <Text style={[styles.cardTitle, { color: dmText, marginBottom: 0 }]}>
+                    Verified Citizen Record
+                  </Text>
                   <View
                     style={{
                       backgroundColor: classification.badgeBg,
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
+                      paddingHorizontal: 9,
+                      paddingVertical: 3,
                       borderRadius: 12,
                       borderWidth: 1,
                       borderColor: classification.accentColor + '35',
                     }}
                   >
-                    <Text style={{ color: classification.badgeText, fontSize: 10, fontWeight: '800' }}>
+                    <Text style={{ color: classification.badgeText, fontSize: 10.5, fontWeight: '800' }}>
                       {classification.title}
                     </Text>
                   </View>
                 </View>
+
+                <View style={{ gap: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: dmBorder }}>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Full Name</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '700', color: dmText }}>
+                      {`${appData?.first_name || firstName} ${appData?.last_name || lastName}`.trim() || 'Verified Citizen Resident'}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: dmBorder }}>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Citizen ID / Registry No.</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#0284C7' }}>
+                      {appData?.citizen_id_number || appData?.reference_no || 'CAL-2026-000004'}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: dmBorder }}>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Legislative District</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: dmText }}>
+                      {appData?.district || activeDistrict.name}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: dmBorder }}>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Registered Barangay</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: dmText }}>
+                      {appData?.barangay || barangay}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: dmBorder }}>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Primary Valid ID</Text>
+                    <Text style={{ fontSize: 13.5, fontWeight: '600', color: dmText }}>
+                      {appData?.valid_id_type || selectedIdType}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 13, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Approval Timestamp</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: isDarkMode ? '#10B981' : '#059669' }}>
+                      {formatCardDate(appData?.reviewed_at || appData?.updated_at || appData?.submitted_at)}
+                    </Text>
+                  </View>
+                </View>
               </View>
 
-              {/* THE OFFICIAL WHITE PVC CITIZEN SMART CARD (CR80 PHYSICAL RATIO) */}
-              <View
-                style={{
-                  position: 'relative',
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: '#CBD5E1',
-                  shadowColor: '#0F172A',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 10,
-                  elevation: 4,
-                  overflow: 'hidden',
-                }}
-              >
-                {/* Municipal Building Watermark Background */}
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    bottom: 0,
-                    width: '68%',
-                    height: '85%',
-                    zIndex: 0,
-                  }}
-                >
-                  <Image
-                    source={require('@/assets/images/building-bg.png')}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      opacity: 0.38,
-                    }}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                {/* Wavy Header Ribbon Extended All The Way to the Right (100% Full Width Container) */}
-                <View
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: 80,
-                    zIndex: 1,
-                  }}
-                  pointerEvents="none"
-                >
-                  <Svg
-                    width="100%"
-                    height={80}
-                    viewBox="0 0 360 80"
-                    preserveAspectRatio="none"
-                    style={{ width: '100%', height: 80 }}
-                  >
-                    <Defs>
-                      <SvgGradient id="headerWaveGrad" x1="0" x2="1" y1="0" y2="0">
-                        <SvgStop offset="0%" stopColor={classification.stops[0]} />
-                        <SvgStop offset="30%" stopColor={classification.stops[1]} />
-                        <SvgStop offset="75%" stopColor={classification.stops[2]} />
-                        <SvgStop offset="100%" stopColor={classification.stops[3]} />
-                      </SvgGradient>
-                      <SvgGradient id="goldWaveStripe" x1="0" x2="1" y1="0" y2="0">
-                        <SvgStop offset="0%" stopColor="#D97706" />
-                        <SvgStop offset="50%" stopColor="#FDE047" />
-                        <SvgStop offset="100%" stopColor="#D97706" />
-                      </SvgGradient>
-                    </Defs>
-                    {/* Deep red wave dipping down to 76px on left, 59px on right */}
-                    <SvgPath d="M 0,0 L 360,0 L 360,59 Q 266,69 180,63 T 0,76 Z" fill="url(#headerWaveGrad)" />
-                    {/* Gold accent wave border directly below */}
-                    <SvgPath d="M 0,76 Q 94,63 180,63 T 360,59 L 360,63 Q 266,73 180,67 T 0,80 Z" fill="url(#goldWaveStripe)" />
-                  </Svg>
-                </View>
-
-                {/* CARD FOREGROUND CONTENT LAYER */}
-                <View style={{ padding: 12, position: 'relative', zIndex: 10 }}>
-
-                  {/* TOP HEADER BLOCK */}
-                  <View style={{ marginBottom: 6, zIndex: 10, elevation: 5 }}>
-                  {/* Top Center Line: REPUBLIC OF THE PHILIPPINES */}
-                  <Text
-                    style={{
-                      textAlign: 'center',
-                      fontSize: 7.5,
-                      fontWeight: '700',
-                      color: '#FEE2E2',
-                      letterSpacing: 2,
-                      textTransform: 'uppercase',
-                      marginBottom: 2,
-                    }}
-                  >
-                    REPUBLIC OF THE PHILIPPINES
-                  </Text>
-
-                  {/* Brand Row with Logo & Centered Brand Title */}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2, paddingRight: 36 }}>
-                    {/* Left Emblem Over Dynamic Vector Ribbon with Gold Metallic Ring */}
-                    <View
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: 18,
-                        backgroundColor: '#FFFFFF',
-                        padding: 2,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.15,
-                        shadowRadius: 2,
-                        elevation: 2,
-                        borderWidth: 1.5,
-                        borderColor: '#F59E0B',
-                      }}
-                    >
-                      <Image
-                        source={require('@/assets/images/logo.png')}
-                        style={{ width: 28, height: 28 }}
-                        resizeMode="contain"
-                      />
-                    </View>
-
-                    {/* Centered Brand Title & Tagline */}
-                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text
-                        style={{
-                          fontSize: 15,
-                          fontWeight: '900',
-                          color: '#FFFFFF',
-                          letterSpacing: 0.6,
-                          textTransform: 'uppercase',
-                          textAlign: 'center',
-                          textShadowColor: 'rgba(0,0,0,0.25)',
-                          textShadowOffset: { width: 0, height: 1 },
-                          textShadowRadius: 2,
-                        }}
-                      >
-                        CIVENTRAL CITIZEN CARD
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 7.5,
-                          fontWeight: '700',
-                          color: '#FDE047',
-                          letterSpacing: 1,
-                          textTransform: 'uppercase',
-                          marginTop: 1,
-                          textAlign: 'center',
-                        }}
-                      >
-                        KASAMA KA SA PAG-UNLAD • CITY OF CALOOCAN
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* THREE-COLUMN CARD BODY */}
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  
-                  {/* COLUMN 1: Left - Photo, Signature, Resident Type on clean white base */}
-                  <View style={{ width: 78, alignItems: 'center', justifyContent: 'space-between', zIndex: 20, elevation: 10 }}>
-                    <View style={{ alignItems: 'center' }}>
-                      {/* 1x1 Photo Frame: 76x76, clean 1px neutral slate border, slightly rounded 4px */}
-                      <View
-                        style={{
-                          width: 76,
-                          height: 76,
-                          borderRadius: 4,
-                          borderWidth: 1,
-                          borderColor: '#CBD5E1',
-                          backgroundColor: '#F8FAFC',
-                          overflow: 'hidden',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                        }}
-                      >
-                        {appData?.photo_1x1_url && !photoError ? (
-                          <Image
-                            source={{ uri: resolveCardAssetUrl(appData.photo_1x1_url) || '' }}
-                            style={{ width: '100%', height: '100%' }}
-                            resizeMode="cover"
-                            onError={() => setPhotoError(true)}
-                          />
-                        ) : (
-                          <IconSymbol name="person.crop.circle.fill" size={44} color="#94A3B8" />
-                        )}
-                      </View>
-
-                      {/* Signature Box */}
-                      <View
-                        style={{
-                          width: 76,
-                          height: 24,
-                          borderBottomWidth: 1,
-                          borderBottomColor: '#94A3B8',
-                          borderStyle: 'dashed',
-                          backgroundColor: '#FFFFFF',
-                          marginTop: 3,
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {appData?.signature_photo_url && !signatureError ? (
-                          <Image
-                            source={{ uri: resolveCardAssetUrl(appData.signature_photo_url) || '' }}
-                            style={{ width: '92%', height: '88%' }}
-                            resizeMode="contain"
-                            onError={() => setSignatureError(true)}
-                          />
-                        ) : (
-                          <Text style={{ fontSize: 7.5, color: '#94A3B8', fontStyle: 'italic' }}>Signature</Text>
-                        )}
-                      </View>
-                      <Text
-                        style={{
-                          fontSize: 6.5,
-                          fontWeight: '600',
-                          color: '#64748B',
-                          marginTop: 1,
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        Cardholder Signature
-                      </Text>
-
-                      {/* Dynamic Resident Status Classification on clean white base */}
-                      <Text
-                        style={{
-                          fontSize: 9.5,
-                          fontWeight: '900',
-                          color: '#0F172A',
-                          marginTop: 2,
-                          letterSpacing: 0.5,
-                          textTransform: 'uppercase',
-                          textAlign: 'center',
-                        }}
-                      >
-                        {classification.title}
-                      </Text>
-                    </View>
-
-                    {/* Timestamp at bottom-left corner */}
-                    <Text
-                      style={{
-                        fontSize: 5.8,
-                        color: '#64748B',
-                        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-                        alignSelf: 'flex-start',
-                        marginTop: 4,
-                      }}
-                    >
-                      {formatTimestamp(appData?.reviewed_at || appData?.submitted_at)}
-                    </Text>
-                  </View>
-
-                  {/* COLUMN 2: Center - Citizen Demographics */}
-                  <View style={{ flex: 1, justifyContent: 'space-between', zIndex: 1 }}>
-                    <View>
-                      {/* Full Name Block */}
-                      <Text style={{ fontSize: 6.5, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>
-                        Last Name, First Name, M.I.
-                      </Text>
-                      <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: '900',
-                          color: '#0F172A',
-                          letterSpacing: 0.2,
-                        }}
-                        numberOfLines={1}
-                      >
-                        {formatFullName()}
-                      </Text>
-
-                      {/* Demographics Grid (3 Columns x 2 Rows) */}
-                      <View style={{ borderTopWidth: 1, borderTopColor: '#CBD5E1', paddingTop: 3, marginTop: 3, gap: 2 }}>
-                        {/* Row 1 */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <View style={{ flex: 0.8 }}>
-                            <Text style={{ fontSize: 6, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>Sex</Text>
-                            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#0F172A' }}>
-                              {(appData?.sex || 'M').charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1.3 }}>
-                            <Text style={{ fontSize: 6, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>Date of Birth</Text>
-                            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#0F172A' }}>
-                              {formatCardDate(appData?.birth_date)}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1.1 }}>
-                            <Text style={{ fontSize: 6, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>Civil Status</Text>
-                            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#0F172A' }}>
-                              {appData?.civil_status?.toUpperCase() || 'SINGLE'}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {/* Row 2 */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <View style={{ flex: 0.8 }}>
-                            <Text style={{ fontSize: 6, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>Blood Type</Text>
-                            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#0F172A' }}>N/A</Text>
-                          </View>
-                          <View style={{ flex: 1.3 }}>
-                            <Text style={{ fontSize: 6, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>Date Issued</Text>
-                            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#0F172A' }}>
-                              {formatCardDate(appData?.reviewed_at || appData?.submitted_at)}
-                            </Text>
-                          </View>
-                          <View style={{ flex: 1.1 }}>
-                            <Text style={{ fontSize: 6, fontWeight: '700', color: '#334155', textTransform: 'uppercase' }}>Valid Until</Text>
-                            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#0F172A' }}>
-                              {formatCardDate(appData?.reviewed_at, 5)}
-                            </Text>
-                          </View>
-                        </View>
-                      </View>
-
-                      {/* Address Block (2 Lines uppercase) */}
-                      <View style={{ borderTopWidth: 1, borderTopColor: '#CBD5E1', paddingTop: 3, marginTop: 3 }}>
-                        <Text
-                          style={{
-                            fontSize: 8,
-                            fontWeight: '800',
-                            color: '#0F172A',
-                            textTransform: 'uppercase',
-                            lineHeight: 10,
-                          }}
-                          numberOfLines={1}
-                        >
-                          {((appData?.street_address ? `${appData.street_address}, ` : '') + (appData?.barangay || 'Barangay 3') + ', District 1').toUpperCase()}
-                        </Text>
-                        <Text
-                          style={{
-                            fontSize: 8,
-                            fontWeight: '800',
-                            color: '#0F172A',
-                            textTransform: 'uppercase',
-                            lineHeight: 10,
-                          }}
-                        >
-                          CALOOCAN CITY
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Emergency Contact at bottom */}
-                    <Text style={{ fontSize: 6.5, color: '#334155', marginTop: 3 }}>
-                      In case of Emergency, contact: <Text style={{ fontWeight: '700', color: '#0F172A' }}>(02) 8366-3101</Text>
-                    </Text>
-                  </View>
-
-                  {/* COLUMN 3: Right - QR & Control String */}
-                  <View style={{ width: 74, alignItems: 'flex-end', justifyContent: 'space-between', zIndex: 20, elevation: 10 }}>
-                    <View style={{ alignItems: 'center', width: '100%' }}>
-                      {/* High-density square QR code matrix with zero padding/margins */}
-                      <View
-                        style={{
-                          width: 72,
-                          height: 72,
-                          backgroundColor: '#FFFFFF',
-                          borderWidth: 1,
-                          borderColor: '#E2E8F0',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                        }}
-                      >
-                        <QRCode
-                          value={`CIVENTRAL:ID:${appData?.citizen_id_number || 'CAL-2026-000004'}|TOKEN:${appData?.qr_code_token || ''}`}
-                          size={66}
-                          color="#0F172A"
-                          backgroundColor="#FFFFFF"
-                        />
-                      </View>
-
-                      {/* Monospace numeric sequence directly below QR */}
-                      <Text
-                        style={{
-                          fontSize: 7,
-                          fontWeight: '700',
-                          color: '#334155',
-                          fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-                          marginTop: 2,
-                          textAlign: 'center',
-                        }}
-                      >
-                        {'0100' + (String(appData?.citizen_id_number || '000004').replace(/\D/g, '') || '000004').padStart(10, '0')}
-                      </Text>
-                    </View>
-
-                    {/* Security Micro-Code at bottom-right corner */}
-                    <Text
-                      style={{
-                        fontSize: 8,
-                        fontWeight: '800',
-                        color: '#334155',
-                        fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-                        marginTop: 4,
-                      }}
-                    >
-                      00
-                    </Text>
-                  </View>
-
-                </View>
-              </View>
-            </View>
-
-            {/* NATIVE PRINT & SAVE PDF ACTIONS */}
-            <View
-              style={{
-                flexDirection: 'row',
-                gap: 10,
-                marginTop: 14,
-                marginBottom: 16,
-              }}
-            >
-              <TouchableOpacity
-                onPress={handlePrintCard}
-                disabled={isPrinting}
-                activeOpacity={0.8}
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: '#0F4C81',
-                  paddingVertical: 13,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  shadowColor: '#0F4C81',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.2,
-                  shadowRadius: 4,
-                  elevation: 3,
-                  gap: 8,
-                }}
-              >
-                <IconSymbol name="printer.fill" size={17} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '800' }}>
-                  {isPrinting ? 'Preparing Document...' : 'Print / Save PDF'}
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleSharePdf}
-                disabled={isPrinting}
-                activeOpacity={0.8}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isDarkMode ? '#1E293B' : '#FFFFFF',
-                  borderWidth: 1.5,
-                  borderColor: isDarkMode ? '#334155' : '#0F4C81',
-                  paddingVertical: 13,
-                  paddingHorizontal: 16,
-                  borderRadius: 12,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 1 },
-                  shadowOpacity: 0.05,
-                  shadowRadius: 2,
-                  elevation: 1,
-                  gap: 8,
-                }}
-              >
-                <IconSymbol name="square.and.arrow.up" size={17} color={isDarkMode ? '#38BDF8' : '#0F4C81'} />
-                <Text style={{ color: isDarkMode ? '#38BDF8' : '#0F4C81', fontSize: 13, fontWeight: '800' }}>
-                  Share PDF
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-              {/* CITY CIVIC SUPPORT DIRECTORY & EMERGENCY HOTLINES */}
+              {/* ID Application Callout Card (Redirects to ID Application) */}
               <View
                 style={[
                   styles.card,
                   {
-                    backgroundColor: dmCard,
-                    borderColor: dmBorder,
-                    borderWidth: 1,
-                    borderRadius: 16,
-                    padding: 16,
+                    backgroundColor: isDarkMode ? '#0B2545' : '#F0F9FF',
+                    borderColor: '#0284C7',
+                    borderWidth: 1.5,
+                    padding: 18,
+                    gap: 12,
                   },
                 ]}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <View
                     style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      backgroundColor: isDarkMode ? '#7F1D1D' : '#FEE2E2',
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      backgroundColor: isDarkMode ? '#1E3A8A' : '#E0F2FE',
                       alignItems: 'center',
                       justifyContent: 'center',
                     }}
                   >
-                    <IconSymbol name="phone.fill" size={18} color="#DC2626" />
+                    <IconSymbol name="person.text.rectangle.fill" size={24} color="#0284C7" />
                   </View>
-                  <View>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: dmText }}>
-                      Caloocan Civic & Emergency Directory
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: isDarkMode ? '#93C5FD' : '#0369A1' }}>
+                      Civentral Citizen ID Card
                     </Text>
-                    <Text style={{ fontSize: 11, color: isDarkMode ? '#94A3B8' : '#64748B' }}>
-                      24/7 Priority Emergency & Resident Hotlines
+                    <Text style={{ fontSize: 12, color: isDarkMode ? '#BFDBFE' : '#0284C7', marginTop: 1 }}>
+                      Physical PVC & Digital Smart Card Issuance
                     </Text>
                   </View>
                 </View>
 
-                {/* Hotlines Directory List */}
+                <Text style={{ fontSize: 13, color: isDarkMode ? '#CBD5E1' : '#334155', lineHeight: 19 }}>
+                  Your citizenship registry is approved! You can now request your official physical Civentral Citizen ID card or view your digital ID card in the dedicated ID Application module.
+                </Text>
+
+                <TouchableOpacity
+                  style={[
+                    styles.primaryButton,
+                    {
+                      width: '100%',
+                      backgroundColor: '#0284C7',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      marginTop: 4,
+                    },
+                  ]}
+                  onPress={() => router.push('/citizen-id-application')}
+                  activeOpacity={0.88}
+                >
+                  <IconSymbol name="creditcard.fill" size={18} color="#FFFFFF" />
+                  <Text style={styles.primaryButtonText}>Go to Citizen ID Application</Text>
+                  <IconSymbol name="chevron.right" size={14} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Civic Services Unlocked Info Box */}
+              <View
+                style={[
+                  styles.card,
+                  { backgroundColor: dmCard, borderColor: dmBorder, padding: 16, gap: 10 },
+                ]}
+              >
+                <Text style={{ fontSize: 13.5, fontWeight: '700', color: dmText }}>
+                  Civic Benefits & Services Unlocked
+                </Text>
                 <View style={{ gap: 8 }}>
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 7,
-                      borderBottomWidth: 1,
-                      borderBottomColor: dmBorder,
-                    }}
-                  >
-                    <View>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: dmText }}>CDRRMO Rescue (Disaster)</Text>
-                      <Text style={{ fontSize: 10, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Caloocan Disaster Command</Text>
-                    </View>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#DC2626' }}>(02) 888-ALERTO</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <IconSymbol name="checkmark.circle.fill" size={16} color="#10B981" />
+                    <Text style={{ fontSize: 12.5, color: isDarkMode ? '#94A3B8' : '#475569', flex: 1 }}>
+                      Verified access to Barangay Clearances & City Certificates
+                    </Text>
                   </View>
-
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 7,
-                      borderBottomWidth: 1,
-                      borderBottomColor: dmBorder,
-                    }}
-                  >
-                    <View>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: dmText }}>PNP Police Headquarters</Text>
-                      <Text style={{ fontSize: 10, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Caloocan Police Station</Text>
-                    </View>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#0284C7' }}>(02) 8287-2270</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <IconSymbol name="checkmark.circle.fill" size={16} color="#10B981" />
+                    <Text style={{ fontSize: 12.5, color: isDarkMode ? '#94A3B8' : '#475569', flex: 1 }}>
+                      Direct priority triage for Grievances & Concern reports
+                    </Text>
                   </View>
-
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 7,
-                      borderBottomWidth: 1,
-                      borderBottomColor: dmBorder,
-                    }}
-                  >
-                    <View>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: dmText }}>BFP Fire Central Station</Text>
-                      <Text style={{ fontSize: 10, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Bureau of Fire Protection</Text>
-                    </View>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#EA580C' }}>(02) 8361-9878</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <IconSymbol name="checkmark.circle.fill" size={16} color="#10B981" />
+                    <Text style={{ fontSize: 12.5, color: isDarkMode ? '#94A3B8' : '#475569', flex: 1 }}>
+                      Civic participation in Community Consultations & Surveys
+                    </Text>
                   </View>
-
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 7,
-                      borderBottomWidth: 1,
-                      borderBottomColor: dmBorder,
-                    }}
-                  >
-                    <View>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: dmText }}>City Civil Registry Office</Text>
-                      <Text style={{ fontSize: 10, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Citizen Verification Division</Text>
-                    </View>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#059669' }}>(02) 8366-3101</Text>
-                  </View>
-
-                  <View
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      paddingVertical: 7,
-                    }}
-                  >
-                    <View>
-                      <Text style={{ fontSize: 12, fontWeight: '700', color: dmText }}>National Emergency Hotline</Text>
-                      <Text style={{ fontSize: 10, color: isDarkMode ? '#94A3B8' : '#64748B' }}>Direct Nationwide Dispatch</Text>
-                    </View>
-                    <View style={{ backgroundColor: '#DC2626', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
-                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#FFFFFF' }}>911</Text>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Civic Links & Verification Notice */}
-                <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: dmBorder, gap: 4 }}>
-                  <Text style={{ fontSize: 11, color: isDarkMode ? '#94A3B8' : '#64748B' }}>
-                    • Official Portal: <Text style={{ color: '#0284C7', fontWeight: '700' }}>caloocancity.gov.ph</Text>
-                  </Text>
-                  <Text style={{ fontSize: 11, color: isDarkMode ? '#94A3B8' : '#64748B' }}>
-                    • Civentral Cloud: <Text style={{ color: '#0284C7', fontWeight: '700' }}>civentral.tech</Text>
-                  </Text>
-                  <Text style={{ fontSize: 9.5, color: isDarkMode ? '#64748B' : '#94A3B8', marginTop: 4, fontStyle: 'italic', lineHeight: 14 }}>
-                    Notice: This digital resident card is issued pursuant to City Ordinance No. 0824 as an authentic, scannable proof of residency in the City of Caloocan.
-                  </Text>
                 </View>
               </View>
 
-              {/* Action Buttons: Refresh & Return */}
-              <TouchableOpacity
-                style={[styles.primaryButton, { width: '100%' }]}
-                onPress={async () => {
-                  setIsLoadingStatus(true);
-                  const currentUser = AuthService.getCurrentUser();
-                  const res = await ProfileService.getVerificationStatus(
-                    currentUser.citizen_user_id || undefined,
-                    currentUser.email || undefined
-                  );
-                  if (res?.data) {
-                    setAppStatus(res.data.verification_status);
-                    setAppData(res.data);
-                  }
-                  setIsLoadingStatus(false);
-                }}
-                activeOpacity={0.85}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <IconSymbol name="arrow.clockwise" size={18} color="#FFFFFF" />
-                  <Text style={styles.primaryButtonText}>Refresh Card Data</Text>
-                </View>
-              </TouchableOpacity>
+              {/* Action Buttons: Refresh & Return to Dashboard */}
+              <View style={{ gap: 10 }}>
+                <TouchableOpacity
+                  style={[styles.primaryButton, { width: '100%' }]}
+                  onPress={async () => {
+                    setIsLoadingStatus(true);
+                    const currentUser = AuthService.getCurrentUser();
+                    const res = await ProfileService.getVerificationStatus(
+                      currentUser.citizen_user_id || undefined,
+                      currentUser.email || undefined
+                    );
+                    if (res?.data) {
+                      setAppStatus(res.data.verification_status);
+                      setAppData(res.data);
+                    }
+                    setIsLoadingStatus(false);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <IconSymbol name="arrow.clockwise" size={18} color="#FFFFFF" />
+                    <Text style={styles.primaryButtonText}>Refresh Verification Status</Text>
+                  </View>
+                </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.secondaryButton, { width: '100%' }, isDarkMode && { backgroundColor: '#152238', borderColor: dmBorder }]}
-                onPress={() => router.replace('/(tabs)')}
-                activeOpacity={0.85}
-              >
-                <Text style={[styles.secondaryButtonText, isDarkMode && { color: '#CBD5E1' }]}>Back to Dashboard</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.secondaryButton,
+                    { width: '100%' },
+                    isDarkMode && { backgroundColor: '#152238', borderColor: dmBorder },
+                  ]}
+                  onPress={() => router.replace('/(tabs)')}
+                  activeOpacity={0.85}
+                >
+                  <Text style={[styles.secondaryButtonText, isDarkMode && { color: '#CBD5E1' }]}>
+                    Return to Dashboard
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ) : (
             <>
