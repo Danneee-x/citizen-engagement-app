@@ -55,7 +55,7 @@ export default function CommunityFeedbackScreen() {
   const [comments, setComments] = useState('');
 
   // Optional Attachment
-  const [attachment, setAttachment] = useState<{ name: string; size: string } | null>(null);
+  const [attachment, setAttachment] = useState<{ name: string; size: string; uri?: string; data?: string } | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,14 +83,18 @@ export default function CommunityFeedbackScreen() {
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        quality: 0.85,
+        quality: 0.6,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        const base64Data = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined;
         setAttachment({
           name: asset.fileName || `feedback_proof_${Date.now()}.jpg`,
           size: `${Math.round((asset.fileSize || 1024 * 500) / 1024)} KB`,
+          uri: asset.uri,
+          data: base64Data,
         });
       }
     } catch (err) {
@@ -116,6 +120,11 @@ export default function CommunityFeedbackScreen() {
       citizenName,
       citizenEmail,
       citizenBarangay,
+      attachment: attachment ? {
+        name: attachment.name,
+        size: attachment.size,
+        data: attachment.data || (attachment.uri?.startsWith('data:image') ? attachment.uri : undefined),
+      } : null,
     };
 
     const isLocalhost =

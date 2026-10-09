@@ -191,6 +191,7 @@ export function HomeScreen() {
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(INITIAL_ANNOUNCEMENTS);
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<AnnouncementItem | null>(null);
+  const [failedAnnouncementImages, setFailedAnnouncementImages] = useState<Record<string, boolean>>({});
   const [isQrModalVisible, setIsQrModalVisible] = useState(false);
 
   const [verificationData, setVerificationData] = useState<{
@@ -1106,7 +1107,7 @@ export function HomeScreen() {
                 </TouchableOpacity>
               </View>
               <ScrollView style={{ maxHeight: 420, marginVertical: 12 }}>
-                {selectedAnnouncement.attachmentUrl && !selectedAnnouncement.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                {selectedAnnouncement.attachmentUrl && !selectedAnnouncement.attachmentUrl.toLowerCase().endsWith('.pdf') && !failedAnnouncementImages[selectedAnnouncement.attachmentUrl] ? (
                   <View
                     style={[
                       styles.ancModalImageContainer,
@@ -1117,6 +1118,11 @@ export function HomeScreen() {
                       source={{ uri: selectedAnnouncement.attachmentUrl }}
                       style={styles.ancModalImage}
                       resizeMode="cover"
+                      onError={() => {
+                        if (selectedAnnouncement.attachmentUrl) {
+                          setFailedAnnouncementImages(prev => ({ ...prev, [selectedAnnouncement.attachmentUrl!]: true }));
+                        }
+                      }}
                     />
                   </View>
                 ) : null}

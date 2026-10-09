@@ -111,7 +111,7 @@ export default function ReportConcernScreen() {
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   // File / Photo Uploads
-  const [photos, setPhotos] = useState<{ id: string; name: string; size: string; uri?: string }[]>([]);
+  const [photos, setPhotos] = useState<{ id: string; name: string; size: string; uri?: string; data?: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -378,11 +378,13 @@ export default function ReportConcernScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.5,
+        quality: 0.6,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        const base64Data = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined;
         setPhotos((prev) => [
           ...prev,
           {
@@ -390,6 +392,7 @@ export default function ReportConcernScreen() {
             name: asset.fileName || `evidence_photo_${prev.length + 1}.jpg`,
             size: `${Math.round((asset.fileSize || 1024 * 650) / 1024)} KB`,
             uri: asset.uri,
+            data: base64Data,
           },
         ]);
       }
@@ -442,6 +445,7 @@ export default function ReportConcernScreen() {
           name: p.name,
           size: p.size,
           uri: p.uri,
+          data: p.data || (p.uri?.startsWith('data:image') ? p.uri : undefined),
         })),
       });
 

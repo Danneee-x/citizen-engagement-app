@@ -21,14 +21,21 @@ function resolveAttachmentUrl(rawUrl?: string | null): string | null {
   const trimmed = rawUrl.trim();
   if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return null;
 
+  if (trimmed.startsWith('data:image/')) {
+    return trimmed;
+  }
+
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    // If it points to api-citizen subdomain, static assets are hosted on main web domain
-    return trimmed.replace('api-citizen.civentral.tech', 'civentral.tech');
+    // If it points to civentral.tech or api-citizen.civentral.tech, static assets are hosted on citizenship.civentral.tech
+    return trimmed
+      .replace('https://civentral.tech/', 'https://citizenship.civentral.tech/')
+      .replace('http://civentral.tech/', 'https://citizenship.civentral.tech/')
+      .replace('api-citizen.civentral.tech', 'citizenship.civentral.tech');
   }
 
   // Handle relative paths like 'assets/uploads/...' or '/assets/uploads/...'
   const cleanPath = trimmed.replace(/^\/+/, '');
-  return `https://civentral.tech/${cleanPath}`;
+  return `https://citizenship.civentral.tech/${cleanPath}`;
 }
 
 export class NotificationService {

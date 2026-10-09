@@ -26,6 +26,7 @@ export function NotificationsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedAlert, setSelectedAlert] = useState<CivicAlert | null>(null);
   const [readAlertIds, setReadAlertIds] = useState<Set<string>>(new Set());
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
   const fetchAlerts = async () => {
     try {
@@ -167,12 +168,17 @@ export function NotificationsScreen() {
                   </Text>
 
                   {/* Attachment Preview (Image or Document) */}
-                  {item.attachmentUrl && !item.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                  {item.attachmentUrl && !item.attachmentUrl.toLowerCase().endsWith('.pdf') && !failedImages[item.attachmentUrl] ? (
                     <View style={[styles.cardImageContainer, isDarkMode && { borderColor: '#3A506B', backgroundColor: '#0B132B' }]}>
                       <Image
                         source={{ uri: item.attachmentUrl }}
                         style={styles.cardImage}
                         resizeMode="cover"
+                        onError={() => {
+                          if (item.attachmentUrl) {
+                            setFailedImages((prev) => ({ ...prev, [item.attachmentUrl!]: true }));
+                          }
+                        }}
                       />
                     </View>
                   ) : item.attachmentUrl && item.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
@@ -240,12 +246,17 @@ export function NotificationsScreen() {
 
               {/* Body Content & Image Attachment */}
               <ScrollView style={styles.modalBodyScroll} showsVerticalScrollIndicator={false}>
-                {selectedAlert.attachmentUrl && !selectedAlert.attachmentUrl.toLowerCase().endsWith('.pdf') ? (
+                {selectedAlert.attachmentUrl && !selectedAlert.attachmentUrl.toLowerCase().endsWith('.pdf') && !failedImages[selectedAlert.attachmentUrl] ? (
                   <View style={[styles.modalImageContainer, isDarkMode && { borderColor: '#3A506B', backgroundColor: '#0B132B' }]}>
                     <Image
                       source={{ uri: selectedAlert.attachmentUrl }}
                       style={styles.modalImage}
                       resizeMode="cover"
+                      onError={() => {
+                        if (selectedAlert.attachmentUrl) {
+                          setFailedImages((prev) => ({ ...prev, [selectedAlert.attachmentUrl!]: true }));
+                        }
+                      }}
                     />
                   </View>
                 ) : selectedAlert.attachmentUrl && selectedAlert.attachmentUrl.toLowerCase().endsWith('.pdf') ? (

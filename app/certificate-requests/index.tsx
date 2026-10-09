@@ -149,7 +149,7 @@ export default function CertificateRequestsScreen() {
   const [isPurposeDropdownOpen, setIsPurposeDropdownOpen] = useState(false);
   const [purposeDetails, setPurposeDetails] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
-  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string; uri?: string }[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<{ id: string; name: string; size: string; uri?: string; data?: string }[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -259,11 +259,13 @@ export default function CertificateRequestsScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: false,
-        quality: 0.5,
+        quality: 0.6,
+        base64: true,
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        const base64Data = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined;
         setUploadedFiles((prev) => [
           ...prev,
           {
@@ -271,6 +273,7 @@ export default function CertificateRequestsScreen() {
             name: asset.fileName || `supporting_doc_${prev.length + 1}.jpg`,
             size: `${Math.round((asset.fileSize || 1024 * 600) / 1024)} KB`,
             uri: asset.uri,
+            data: base64Data,
           },
         ]);
       }
@@ -321,6 +324,7 @@ export default function CertificateRequestsScreen() {
           name: f.name,
           size: f.size,
           uri: f.uri,
+          data: f.data || (f.uri?.startsWith('data:image') ? f.uri : undefined),
         })),
         encoded_by: 'Citizen Mobile App',
       });
