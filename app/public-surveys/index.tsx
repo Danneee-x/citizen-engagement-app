@@ -17,37 +17,15 @@ import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/src/components/ui/icon-symbol';
 import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
+import { AuthService } from '@/src/services/auth-service';
+import {
+  SurveyService,
+  SurveyItem,
+  SurveyQuestion,
+  ConsultationItem,
+} from '@/src/services/survey-service';
 
-export interface SurveyItem {
-  id: string;
-  surveyCode?: string;
-  title: string;
-  shortDescription: string;
-  category: string;
-  estimatedTime: string;
-  closingDate: string;
-  status: 'Open' | 'Completed' | 'Closing Soon';
-  isPublicResults: boolean;
-  questions: SurveyQuestion[];
-}
-
-export interface SurveyQuestion {
-  id: string;
-  title: string;
-  type: 'multiple_choice' | 'multiple_selection' | 'yes_no' | 'rating_scale' | 'likert_scale' | 'short_answer' | 'long_answer';
-  options?: string[];
-  required?: boolean;
-}
-
-export interface ConsultationItem {
-  id: string;
-  title: string;
-  category: string;
-  closingDate: string;
-  backgroundInfo: string;
-  objective: string;
-  participantsCount: number;
-}
+export type { SurveyItem, SurveyQuestion, ConsultationItem };
 
 export interface AnsweredRecord {
   survey: SurveyItem;
@@ -80,8 +58,8 @@ export default function PublicSurveysScreen() {
   const router = useRouter();
   const { isDarkMode } = useTheme();
 
-  // Active Tab: 'surveys' | 'answered'
-  const [activeTab, setActiveTab] = useState<'surveys' | 'answered'>('surveys');
+  // Active Tab: 'surveys' | 'consultations' | 'answered'
+  const [activeTab, setActiveTab] = useState<'surveys' | 'consultations' | 'answered'>('surveys');
   const [answeredSurveys, setAnsweredSurveys] = useState<Record<string, AnsweredRecord>>(() => getStoredAnsweredSurveys());
   const [viewingSubmission, setViewingSubmission] = useState<AnsweredRecord | null>(null);
 
@@ -129,61 +107,22 @@ export default function PublicSurveysScreen() {
     return list;
   }, [answeredSurveys]);
 
-  const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api-citizen.civentral.tech/api/citizen';
-
-  const getCandidateEndpoints = React.useCallback((filename: string): string[] => {
-    const isLocalhost =
-      Platform.OS === 'web' &&
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-    return [
-      `${API_BASE_URL}/${filename}`,
-      ...(isLocalhost
-        ? [
-            `http://localhost/citizen-information-and-engagement-final-try/api/citizen/${filename}`,
-            `http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/${filename}`,
-            `http://localhost/citizen-backend/api/citizen/${filename}`,
-          ]
-        : []),
-    ];
-  }, [API_BASE_URL]);
-
   const fetchBackendData = React.useCallback(async () => {
-    const surveyEndpoints = getCandidateEndpoints('get-surveys.php');
-    for (const ep of surveyEndpoints) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const srvRes = await fetch(ep, { headers: { Accept: 'application/json' }, signal: controller.signal });
-        clearTimeout(timeout);
-        if (srvRes.ok) {
-          const srvJson = await srvRes.json();
-          if (srvJson?.success && Array.isArray(srvJson.data) && srvJson.data.length > 0) {
-            setSurveysList(srvJson.data);
-            break;
-          }
-        }
-      } catch (_) {}
+    try {
+      const [surveys, consultations] = await Promise.all([
+        SurveyService.getSurveys(),
+        SurveyService.getConsultations(),
+      ]);
+      if (Array.isArray(surveys) && surveys.length > 0) {
+        setSurveysList(surveys);
+      }
+      if (Array.isArray(consultations) && consultations.length > 0) {
+        setConsultationsList(consultations);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch surveys & consultations:', err);
     }
-
-    const consultEndpoints = getCandidateEndpoints('get-consultations.php');
-    for (const ep of consultEndpoints) {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const consRes = await fetch(ep, { headers: { Accept: 'application/json' }, signal: controller.signal });
-        clearTimeout(timeout);
-        if (consRes.ok) {
-          const consJson = await consRes.json();
-          if (consJson?.success && Array.isArray(consJson.data) && consJson.data.length > 0) {
-            setConsultationsList(consJson.data);
-            break;
-          }
-        }
-      } catch (_) {}
-    }
-  }, [getCandidateEndpoints]);
+  }, []);
 
   React.useEffect(() => {
     fetchBackendData();
@@ -231,34 +170,25 @@ export default function PublicSurveysScreen() {
         }
       }
 
-      const endpoints = getCandidateEndpoints('submit-survey-response.php');
-      const payload = {
+      const session = AuthService.getCurrentUser();
+      const u = ((session as any)?.user || session) as any;
+      const citizenName = u?.first_name
+        ? `${u.first_name} ${u.last_name || ''}`.trim()
+        : (u?.username || session.email || 'Verified Citizen');
+      const barangay = u?.barangay || 'Barangay 178 (Camarin)';
+
+      const res = await SurveyService.submitSurveyResponse({
         survey_id: activeSurvey.id,
-        answers: answers,
-        citizen_name: 'Verified Citizen',
-        barangay: 'Barangay 178 (Camarin)',
+        citizen_id: session.citizen_user_id || undefined,
+        citizen_name: citizenName,
+        barangay: barangay,
         overall_rating: overallRating,
         commentary: commentary,
-      };
+        answers: answers,
+      });
 
-      for (const ep of endpoints) {
-        try {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 20000);
-          const res = await fetch(ep, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-            body: JSON.stringify(payload),
-            signal: controller.signal,
-          });
-          clearTimeout(timeout);
-          if (res.ok) {
-            const json = await res.json();
-            if (json?.success) break;
-          }
-        } catch (e) {
-          console.warn('Survey submit try failed:', ep, e);
-        }
+      if (!res.success) {
+        console.warn('Survey submit notice:', res.message);
       }
     } catch (e) {
       console.log('Submit error:', e);
@@ -298,6 +228,8 @@ export default function PublicSurveysScreen() {
         dateSubmitted: dateStr,
         isPublicResults: activeSurvey.isPublicResults,
       });
+
+      fetchBackendData();
     }
   };
 
@@ -306,38 +238,34 @@ export default function PublicSurveysScreen() {
       Alert.alert('Required Field', 'Please write your comment or suggestion for the consultation.');
       return;
     }
+    if (!activeConsultation) return;
 
     setIsSubmittingConsultation(true);
     try {
-      if (activeConsultation) {
-        const endpoints = getCandidateEndpoints('submit-consultation-feedback.php');
-        const payload = {
-          consultation_id: activeConsultation.id,
-          stance: consultationStance,
-          commentary: consultationComment,
-          citizen_name: 'Verified Citizen',
-          barangay: 'Barangay 176 (Bagong Silang)',
-        };
+      const session = AuthService.getCurrentUser();
+      const u = ((session as any)?.user || session) as any;
+      const citizenName = u?.first_name
+        ? `${u.first_name} ${u.last_name || ''}`.trim()
+        : (u?.username || session.email || 'Verified Citizen');
+      const barangay = u?.barangay || 'Barangay 176 (Bagong Silang)';
 
-        for (const ep of endpoints) {
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 20000);
-            const res = await fetch(ep, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-              body: JSON.stringify(payload),
-              signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            if (res.ok) {
-              const json = await res.json();
-              if (json?.success) break;
-            }
-          } catch (e) {
-            console.warn('Consultation submit try failed:', ep, e);
-          }
-        }
+      const res = await SurveyService.submitConsultationFeedback({
+        consultation_id: activeConsultation.id,
+        citizen_id: session.citizen_user_id || undefined,
+        citizen_name: citizenName,
+        barangay: barangay,
+        stance: consultationStance,
+        commentary: consultationComment.trim(),
+      });
+
+      if (res.success) {
+        setConsultationsList((prev) =>
+          prev.map((c) =>
+            c.id === activeConsultation.id
+              ? { ...c, participantsCount: (c.participantsCount || 0) + 1 }
+              : c
+          )
+        );
       }
     } catch (e) {
       console.log('Consultation error:', e);
@@ -346,6 +274,7 @@ export default function PublicSurveysScreen() {
       setConsultationSuccessMsg(
         'Your position and suggestions have been formally recorded and forwarded to the Caloocan City Legislative Committee.'
       );
+      fetchBackendData();
     }
   };
 
@@ -440,7 +369,7 @@ export default function PublicSurveysScreen() {
               >
                 <IconSymbol
                   name="list.bullet.clipboard.fill"
-                  size={16}
+                  size={14}
                   color={activeTab === 'surveys' ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B'}
                 />
                 <Text
@@ -449,8 +378,35 @@ export default function PublicSurveysScreen() {
                     activeTab === 'surveys' && styles.tabButtonTextActive,
                     isDarkMode && activeTab !== 'surveys' && { color: '#94A3B8' },
                   ]}
+                  numberOfLines={1}
                 >
-                  Active Surveys ({activeSurveysList.length})
+                  Surveys ({activeSurveysList.length})
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.tabButton,
+                  activeTab === 'consultations' && styles.tabButtonActive,
+                  activeTab === 'consultations' && { backgroundColor: '#7C3AED' },
+                ]}
+                onPress={() => setActiveTab('consultations')}
+                activeOpacity={0.8}
+              >
+                <IconSymbol
+                  name="bubble.left.and.bubble.right.fill"
+                  size={14}
+                  color={activeTab === 'consultations' ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B'}
+                />
+                <Text
+                  style={[
+                    styles.tabButtonText,
+                    activeTab === 'consultations' && styles.tabButtonTextActive,
+                    isDarkMode && activeTab !== 'consultations' && { color: '#94A3B8' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  Consultations ({consultationsList.length})
                 </Text>
               </TouchableOpacity>
 
@@ -465,7 +421,7 @@ export default function PublicSurveysScreen() {
               >
                 <IconSymbol
                   name="checkmark.seal.fill"
-                  size={16}
+                  size={14}
                   color={activeTab === 'answered' ? '#FFFFFF' : isDarkMode ? '#94A3B8' : '#64748B'}
                 />
                 <Text
@@ -474,8 +430,9 @@ export default function PublicSurveysScreen() {
                     activeTab === 'answered' && styles.tabButtonTextActive,
                     isDarkMode && activeTab !== 'answered' && { color: '#94A3B8' },
                   ]}
+                  numberOfLines={1}
                 >
-                  Answered Surveys ({answeredList.length})
+                  Answered ({answeredList.length})
                 </Text>
               </TouchableOpacity>
             </View>
@@ -583,7 +540,142 @@ export default function PublicSurveysScreen() {
               </View>
             )}
 
-            {/* ── TAB 2: ANSWERED SURVEYS LIST ── */}
+            {/* ── TAB 2: PUBLIC CONSULTATIONS LIST ── */}
+            {activeTab === 'consultations' && (
+              <View style={styles.listContainer}>
+                {consultationsList.length === 0 ? (
+                  <View
+                    style={[
+                      styles.emptyCard,
+                      isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.emptyIconCircle,
+                        { backgroundColor: isDarkMode ? '#1E293B' : '#EDE9FE' },
+                      ]}
+                    >
+                      <IconSymbol
+                        name="bubble.left.and.bubble.right.fill"
+                        size={28}
+                        color="#7C3AED"
+                      />
+                    </View>
+                    <Text style={[styles.emptyTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                      No Active Consultations
+                    </Text>
+                    <Text style={[styles.emptySubtitle, isDarkMode && { color: '#94A3B8' }]}>
+                      There are currently no open civic consultations. Pull down to refresh or check back later for public hearings and ordinances.
+                    </Text>
+                  </View>
+                ) : (
+                  consultationsList.map((cons) => (
+                    <View
+                      key={cons.id}
+                      style={[
+                        styles.surveyCard,
+                        isDarkMode && { backgroundColor: '#1C2541', borderColor: '#3A506B' },
+                        { borderLeftWidth: 4, borderLeftColor: '#7C3AED' },
+                      ]}
+                    >
+                      <View style={styles.surveyCardTop}>
+                        <Badge
+                          label={cons.category || 'CIVIC CONSULTATION'}
+                          variant="info"
+                        />
+                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                          <View
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 4,
+                              backgroundColor: isDarkMode ? '#2E1065' : '#EDE9FE',
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                              borderRadius: 6,
+                            }}
+                          >
+                            <IconSymbol name="person.2.fill" size={12} color="#7C3AED" />
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: isDarkMode ? '#C4B5FD' : '#7C3AED' }}>
+                              {cons.participantsCount || 0} Citizens
+                            </Text>
+                          </View>
+                          <Badge
+                            label={(cons.status || 'OPEN').toUpperCase()}
+                            variant="success"
+                          />
+                        </View>
+                      </View>
+
+                      <Text style={[styles.surveyCardTitle, isDarkMode && { color: '#F8FAFC' }]}>
+                        {cons.title}
+                      </Text>
+
+                      {cons.backgroundInfo ? (
+                        <Text style={[styles.surveyCardDesc, isDarkMode && { color: '#CBD5E1' }]}>
+                          {cons.backgroundInfo}
+                        </Text>
+                      ) : null}
+
+                      {cons.objective ? (
+                        <View
+                          style={{
+                            backgroundColor: isDarkMode ? '#152238' : '#F8FAFC',
+                            padding: 10,
+                            borderRadius: 8,
+                            marginBottom: 12,
+                            borderWidth: 1,
+                            borderColor: isDarkMode ? '#334155' : '#E2E8F0',
+                          }}
+                        >
+                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#7C3AED', marginBottom: 2 }}>
+                            CONSULTATION OBJECTIVE
+                          </Text>
+                          <Text style={{ fontSize: 12, color: isDarkMode ? '#CBD5E1' : '#475569', lineHeight: 16 }}>
+                            {cons.objective}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      <View style={styles.metaRow}>
+                        <View style={styles.metaItem}>
+                          <IconSymbol name="calendar" size={13} color="#D97706" />
+                          <Text style={[styles.metaText, isDarkMode && { color: '#94A3B8' }]}>
+                            Closes: {cons.closingDate}
+                          </Text>
+                        </View>
+                        {cons.consultationCode ? (
+                          <View style={styles.metaItem}>
+                            <IconSymbol name="number" size={13} color="#64748B" />
+                            <Text style={[styles.metaText, isDarkMode && { color: '#94A3B8' }]}>
+                              Ref: {cons.consultationCode}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+
+                      <TouchableOpacity
+                        style={[styles.startSurveyBtn, { backgroundColor: '#7C3AED' }]}
+                        onPress={() => {
+                          setActiveConsultation(cons);
+                          setConsultationStance('In Favor');
+                          setConsultationComment('');
+                          setConsultationSuccessMsg(null);
+                        }}
+                        activeOpacity={0.88}
+                      >
+                        <IconSymbol name="bubble.left.and.bubble.right.fill" size={15} color="#FFFFFF" />
+                        <Text style={styles.startSurveyBtnText}>Express Opinion / Join Hearing</Text>
+                        <IconSymbol name="chevron.right" size={14} color="#FFFFFF" />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
+
+            {/* ── TAB 3: ANSWERED SURVEYS LIST ── */}
             {activeTab === 'answered' && (
               <View style={styles.listContainer}>
                 {answeredList.length === 0 ? (
