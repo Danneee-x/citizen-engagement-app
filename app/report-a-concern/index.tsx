@@ -19,6 +19,7 @@ import { IconSymbol } from '@/src/components/ui/icon-symbol';
 import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
 import { AuthService } from '@/src/services/auth-service';
+import { LocalCitizenTable } from '@/src/services/local-citizen-table';
 import { ProfileService } from '@/src/services/profile-service';
 import { ConcernService } from '@/src/services/concern-service';
 
@@ -139,43 +140,95 @@ export default function ReportConcernScreen() {
   const [feedbackComment, setFeedbackComment] = useState('');
   const [isSubmittingRating, setIsSubmittingRating] = useState(false);
 
-  // Pre-load Citizen details & Fetch reports
+  // Pre-load Citizen details & Fetch reports strictly for this citizen
   useEffect(() => {
-    async function loadCitizen() {
+    async function initUserAndReports() {
+      let resolvedId: number | undefined = undefined;
+      let resolvedEmail: string | undefined = undefined;
+      let resolvedPhone: string | undefined = undefined;
+
       try {
         const session = AuthService.getCurrentUser();
         if (session.user) {
           const u = session.user;
-          setContactName(`${u.first_name || ''} ${u.last_name || ''}`.trim());
-          setContactEmail(u.email || '');
-          setContactPhone(u.mobile_number || '');
+          const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+          if (fullName) setContactName(fullName);
+          if (u.email) {
+            setContactEmail(u.email);
+            resolvedEmail = u.email;
+          }
+          if (u.mobile_number) {
+            setContactPhone(u.mobile_number);
+            resolvedPhone = u.mobile_number;
+          }
+          if (u.citizen_user_id) {
+            resolvedId = u.citizen_user_id;
+          }
         }
+        if (session.email && !resolvedEmail) resolvedEmail = session.email;
+        if (session.phone && !resolvedPhone) resolvedPhone = session.phone;
+        if (session.citizen_user_id && !resolvedId) resolvedId = session.citizen_user_id;
 
-        const res = await ProfileService.getProfile(session.email || undefined, session.citizen_user_id || undefined);
+        const res = await ProfileService.getProfile(resolvedEmail || undefined, resolvedId || undefined);
         if (res.status === 'success' && res.data) {
           const d = res.data;
           if (d.fullName) setContactName(d.fullName);
-          if (d.phone) setContactPhone(d.phone);
-          if (d.email) setContactEmail(d.email);
+          if (d.phone) {
+            setContactPhone(d.phone);
+            resolvedPhone = d.phone;
+          }
+          if (d.email) {
+            setContactEmail(d.email);
+            resolvedEmail = d.email;
+          }
+          if (d.citizen_user_id) {
+            resolvedId = d.citizen_user_id;
+          }
           if (d.barangay) setBarangay(d.barangay);
           if (d.address) setLocation(d.address);
         }
       } catch (err) {
         console.warn('Citizen profile fetch error:', err);
       }
+
+      await fetchReports(resolvedId, resolvedEmail, resolvedPhone);
     }
-    loadCitizen();
-    fetchReports();
+
+    initUserAndReports();
   }, []);
 
-  const fetchReports = async () => {
+  const fetchReports = async (overrideId?: number, overrideEmail?: string, overridePhone?: string) => {
     setIsLoadingReports(true);
     try {
       const session = AuthService.getCurrentUser();
-      const rawReports = await ConcernService.getMyReports(session?.citizen_user_id, session?.email);
+      const activeUser = LocalCitizenTable.getActiveSession();
+
+      const userId = overrideId || session?.citizen_user_id || activeUser?.citizen_user_id || undefined;
+      const userEmail = overrideEmail || session?.email || contactEmail || activeUser?.email || undefined;
+      const userPhone = overridePhone || session?.phone || contactPhone || activeUser?.mobile_number || undefined;
+
+      // If user is guest or has no identifier, strictly show empty list (no reports to display)
+      if (!userId && !userEmail && !userPhone) {
+        setReports([]);
+        return;
+      }
+
+      const rawReports = await ConcernService.getMyReports(userId, userEmail, userPhone);
 
       if (Array.isArray(rawReports) && rawReports.length > 0) {
-        const mappedReports: CitizenReport[] = rawReports.map((r: any) => {
+        // Strict client-side filter: only keep concerns belonging strictly to this citizen!
+        const myReportsOnly = rawReports.filter((r: any) => {
+          if (userId && r.citizen_user_id && Number(r.citizen_user_id) === Number(userId)) return true;
+          if (userEmail && r.citizen_email && r.citizen_email.trim().toLowerCase() === userEmail.trim().toLowerCase()) return true;
+          if (userPhone && r.citizen_phone) {
+            const cleanUserPhone = userPhone.replace(/\D/g, '');
+            const cleanRepPhone = String(r.citizen_phone).replace(/\D/g, '');
+            if (cleanUserPhone.length >= 7 && cleanRepPhone.length >= 7 && cleanRepPhone.endsWith(cleanUserPhone.slice(-10))) return true;
+          }
+          return false;
+        });
+
+        const mappedReports: CitizenReport[] = myReportsOnly.map((r: any) => {
           let status: CitizenReport['currentStatus'] = 'Submitted';
           const rawStatus = (r.status || '').toLowerCase();
 
@@ -288,9 +341,12 @@ export default function ReportConcernScreen() {
         });
 
         setReports(mappedReports);
+      } else {
+        setReports([]);
       }
     } catch (err) {
       console.warn('Failed to fetch reports:', err);
+      setReports([]);
     } finally {
       setIsLoadingReports(false);
     }
@@ -357,16 +413,21 @@ export default function ReportConcernScreen() {
 
     try {
       const session = AuthService.getCurrentUser();
+      const activeUser = LocalCitizenTable.getActiveSession();
+      const resolvedUserId = session?.citizen_user_id || activeUser?.citizen_user_id || undefined;
+      const resolvedEmail = contactEmail.trim() || session?.email || activeUser?.email || undefined;
+      const resolvedPhone = contactPhone.trim() || session?.phone || activeUser?.mobile_number || undefined;
+
       const res = await ConcernService.submitConcern({
         title: title.trim(),
         description: description.trim(),
         category: selectedCategory,
         location: location.trim(),
         barangay,
-        citizen_user_id: session?.citizen_user_id || undefined,
+        citizen_user_id: resolvedUserId,
         citizen_name: isAnonymous ? 'Anonymous Resident' : contactName.trim(),
-        citizen_phone: isAnonymous ? undefined : contactPhone.trim(),
-        citizen_email: isAnonymous ? undefined : contactEmail.trim(),
+        citizen_phone: isAnonymous ? undefined : resolvedPhone,
+        citizen_email: isAnonymous ? undefined : resolvedEmail,
         is_anonymous: isAnonymous,
         photos: photos.map((p) => ({
           name: p.name,

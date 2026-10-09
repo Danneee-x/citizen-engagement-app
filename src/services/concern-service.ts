@@ -160,8 +160,13 @@ export class ConcernService {
    */
   public static async getMyReports(
     citizenUserId?: number | null,
-    citizenEmail?: string | null
+    citizenEmail?: string | null,
+    citizenPhone?: string | null
   ): Promise<any[]> {
+    if (!citizenUserId && !citizenEmail && !citizenPhone) {
+      return [];
+    }
+
     const isLocalhost =
       Platform.OS === 'web' &&
       typeof window !== 'undefined' &&
@@ -170,6 +175,7 @@ export class ConcernService {
     const params = new URLSearchParams();
     if (citizenUserId) params.append('citizen_user_id', String(citizenUserId));
     if (citizenEmail) params.append('citizen_email', citizenEmail);
+    if (citizenPhone) params.append('citizen_phone', citizenPhone);
 
     const queryStr = params.toString() ? `?${params.toString()}` : '';
 
