@@ -134,6 +134,7 @@ export default function CommunityFeedbackScreen() {
 
     const candidateEndpoints = [
       `${API_BASE_URL}/submit-community-feedback.php`,
+      'https://api-citizen.civentral.tech/api/citizen/submit-community-feedback.php',
       ...(isLocalhost
         ? [
             'http://localhost/citizen-backend/api/citizen/submit-community-feedback.php',

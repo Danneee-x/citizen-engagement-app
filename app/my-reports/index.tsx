@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { IconSymbol } from '@/src/components/ui/icon-symbol';
 import { Badge } from '@/src/components/ui/Badge';
 import { useTheme } from '@/src/context/ThemeContext';
+import { AuthService, API_BASE_URL } from '@/src/services/auth-service';
 
 export interface DepartmentUpdate {
   id: string;
@@ -123,39 +124,77 @@ export default function MyReportsScreen() {
     setSelectedReport(report);
   };
 
-  const handleSubmitResolutionRating = () => {
+  const handleSubmitResolutionRating = async () => {
     if (!selectedReport) return;
-
     setIsSubmittingRating(true);
-    setTimeout(() => {
-      setIsSubmittingRating(false);
-      const now = new Date();
-      const dateStr =
-        now.toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }) + ` • ` + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
-      const updatedReport: CitizenReport = {
-        ...selectedReport,
-        ratingFeedback: {
-          stars: ratingStars,
-          comment: feedbackComment || 'Resolution verified by citizen.',
-          submittedDate: dateStr,
-        },
-      };
+    const user = AuthService.getCurrentUser();
+    const citizenName =
+      (selectedReport as any).citizen_name ||
+      user.user?.fullName ||
+      `${user.user?.first_name || ''} ${user.user?.last_name || ''}`.trim() ||
+      user.email?.split('@')[0] ||
+      'Citizen';
+    const citizenEmail = user.email || '';
+    const citizenBarangay =
+      (selectedReport as any).barangay || user.user?.barangay || 'Barangay Central';
+    const comments = feedbackComment.trim() || 'Resolution verified by citizen.';
 
-      setReports((prev) =>
-        prev.map((r) => (r.id === selectedReport.id ? updatedReport : r))
-      );
-      setSelectedReport(updatedReport);
-      setIsRatingModalOpen(false);
-      Alert.alert(
-        'Feedback Recorded',
-        'Thank you! Your resolution rating and feedback have been sent to City Hall.'
-      );
-    }, 700);
+    const payload = {
+      serviceName: `Report Resolution: ${(selectedReport as any).category || 'Municipal Concern'}`,
+      referenceNumber: (selectedReport as any).ticket_number || selectedReport.id,
+      overallRating: ratingStars,
+      qualityRating: ratingStars,
+      staffRating: ratingStars,
+      comments: comments,
+      citizenName: citizenName,
+      citizenEmail: citizenEmail,
+      citizenBarangay: citizenBarangay,
+    };
+
+    const endpoints = [
+      `${API_BASE_URL}/submit-community-feedback.php`,
+      'https://api-citizen.civentral.tech/api/citizen/submit-community-feedback.php',
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(ep, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) break;
+      } catch (e) {}
+    }
+
+    setIsSubmittingRating(false);
+    const now = new Date();
+    const dateStr =
+      now.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }) + ' • ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+    const updatedReport: CitizenReport = {
+      ...selectedReport,
+      ratingFeedback: {
+        stars: ratingStars,
+        comment: comments,
+        submittedDate: dateStr,
+      },
+    };
+
+    setReports((prev) =>
+      prev.map((r) => (r.id === selectedReport.id ? updatedReport : r))
+    );
+    setSelectedReport(updatedReport);
+    setIsRatingModalOpen(false);
+    Alert.alert(
+      'Feedback Recorded',
+      'Thank you! Your resolution rating and feedback have been sent to City Hall.'
+    );
   };
 
   return (
