@@ -107,16 +107,18 @@ export class CertificateService {
 
     const candidateEndpoints = isLocalhost
       ? [
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          'http://localhost/citizen-backend/api/citizen/request-certificate.php',
-          'http://127.0.0.1/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
           `${API_BASE_URL}/request-certificate.php`,
+          'https://api-citizen.civentral.tech/api/citizen/request-certificate.php',
+          'http://localhost/citizen-information-and-engagement-final-try/api/citizen/request-certificate.php',
+          'http://127.0.0.1/citizen-information-and-engagement-final-try/api/citizen/request-certificate.php',
+          'http://localhost/citizen-backend/api/citizen/request-certificate.php',
         ]
       : [
           `${API_BASE_URL}/request-certificate.php`,
-          'http://localhost/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          'http://10.0.2.2/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
-          'http://192.168.100.15/civentral-citizen-information-and-engagement/api/citizen/request-certificate.php',
+          'https://api-citizen.civentral.tech/api/citizen/request-certificate.php',
+          'http://localhost/citizen-information-and-engagement-final-try/api/citizen/request-certificate.php',
+          'http://10.0.2.2/citizen-information-and-engagement-final-try/api/citizen/request-certificate.php',
+          'http://192.168.100.15/citizen-information-and-engagement-final-try/api/citizen/request-certificate.php',
           'http://localhost/citizen-backend/api/citizen/request-certificate.php',
         ];
 

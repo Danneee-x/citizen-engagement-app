@@ -29,7 +29,11 @@ export class CivicApiService {
               status: normStatus,
               createdAt: r.created_at ? r.created_at.split(' ')[0] : 'Recent',
               updatedAt: r.updated_at ? r.updated_at.split(' ')[0] : (r.created_at ? r.created_at.split(' ')[0] : 'Recent'),
-            });
+              barangay: r.barangay || 'Barangay 171',
+              feeAmount: r.fee_amount || (r.certificate_type?.includes('Indigency') ? '0.00' : '50.00'),
+              paymentStatus: r.payment_status || (normStatus === 'Completed' || normStatus === 'Approved' ? 'Paid' : (r.certificate_type?.includes('Indigency') ? 'Waived' : 'Pending')),
+              purpose: r.purpose || 'Barangay Registry Filing',
+            } as any);
           });
         }
       } catch {}
