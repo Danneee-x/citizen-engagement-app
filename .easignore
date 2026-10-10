@@ -1,9 +1,12 @@
-node_modules/
+.git/
 .expo/
+.claude/
+.vscode/
+node_modules/
 dist/
 web-build/
-expo-env.d.ts
-.kotlin/
-/ios
-/android
 *.apk
+expo-env.d.ts
+assets/images/video-light-robot.webp
+assets/images/video-dark-robot.webp
+assets/images/building-bg.jpg
